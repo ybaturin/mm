@@ -24,7 +24,7 @@ echo ">> syncing code to $HOST:$REMOTE_DIR"
 rsync -az --delete -e "ssh -i $KEY" \
   --exclude '.venv' --exclude '__pycache__' --exclude '.pytest_cache' \
   --exclude '.idea' --exclude '.git' --exclude '/data' --exclude '*.db' \
-  --exclude '.claude' --exclude '.env' \
+  --exclude '.claude' --exclude '.env' --exclude '*.log' \
   ./ "$HOST:$REMOTE_DIR/"
 
 echo ">> provisioning on $HOST"
