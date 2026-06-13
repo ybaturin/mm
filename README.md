@@ -5,13 +5,17 @@ See `docs/superpowers/specs/2026-06-13-ibkr-trading-agents-design.md` for the fu
 
 ## Status
 
-- Plan 1 of 9: domain models, risk-profile config, deterministic Guardrails Engine. ✓
-- Plan 2 of 9: SQLite persistence — ledger, decision journal, fills, equity snapshots. ✓
-- Plan 3 of 9: Broker boundary — Protocol, FakeBroker, IBKRBroker (ib-async). ✓
-- Plan 4 of 9: Data Collector — MarketDataSource (yfinance), pure indicators, and the
-  `build_briefing()` snapshot fed to the agent. ✓
-- Plan 5 of 9: Agent Core — Claude (`claude-opus-4-8`) turns a briefing into trade
-  proposals via strict structured output. The model proposes only; it executes nothing. ✓
+- Plan 1 of 10: domain models, risk-profile config, deterministic Guardrails Engine. ✓
+- Plan 2 of 10: SQLite persistence — ledger, decision journal, fills, equity snapshots. ✓
+- Plan 3 of 10: Broker boundary — Protocol, FakeBroker, IBKRBroker (ib-async). ✓
+- Plan 4 of 10: Data Collector — MarketDataSource (yfinance), indicators, briefing. ✓
+- Plan 5 of 10: Agent Core — Claude turns a briefing into trade proposals. ✓
+- Plan 6 of 10: Orchestrator + Simulation — run_cycle wires the whole pipeline; a
+  multi-day simulation proves the scheme end-to-end with no live money. ✓
+
+Run the whole scheme on synthetic data (deterministic, free, no API key, no IBKR):
+
+    uv run python -m trading.orchestrator.simulate --days 30
 
 The whole system can run against `FakeBroker` with no live connection. Real paper
 trading uses `IBKRBroker`; verify the connection with:
