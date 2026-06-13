@@ -18,6 +18,9 @@ See `docs/superpowers/specs/2026-06-13-ibkr-trading-agents-design.md` for the fu
 - Plan 8 of 10: Reporter — Telegram digests, fill notifications, alerts, P&L, and
   inline-button confirmation of large trades (`make_confirm` plugs into run_cycle).
   Pure formatters + FakeNotifier are tested; live Bot API via a smoke script. ✓
+- Plan 9 of 10: Safety nets — FreezeStore (halt an agent or everything), reconciliation
+  (ledger vs broker, freeze on divergence), and an independent NAV watchdog that flattens
+  all positions and freezes globally on a floor breach. All deterministic, fully tested. ✓
 
 Run the whole scheme on synthetic data (deterministic, free, no API key, no IBKR):
 
