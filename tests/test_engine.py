@@ -111,3 +111,45 @@ def test_reject_when_trade_limit_reached():
                                prices={"AAPL": 100.0}, trades_today=4)
     assert decision.outcome is Outcome.REJECTED
     assert any("trade limit" in r.lower() for r in decision.reasons)
+
+
+def test_oversized_long_is_trimmed_and_approved():
+    engine = GuardrailsEngine()
+    # max_position_pct 0.25 * 5000 = 1250 -> at 100 -> 12 shares max
+    proposal = open_long(qty=50, price=100.0)
+    decision = engine.evaluate(proposal, make_state(cash=5000.0), make_profile(),
+                               prices={"AAPL": 100.0}, trades_today=0)
+    assert decision.quantity == 12
+    # 12 * 100 = 1200 notional > 500 threshold -> confirmation
+    assert decision.outcome is Outcome.NEEDS_CONFIRMATION
+
+
+def test_trimmed_to_zero_is_rejected():
+    engine = GuardrailsEngine()
+    # price above max notional for even one share: 0.25*5000=1250 cap, price 2000 -> 0 shares
+    proposal = TradeProposal(agent_id="moderate", symbol="BRK", intent=Intent.OPEN_LONG,
+                             quantity=1, reference_price=2000.0, stop_loss_price=1800.0, rationale="x")
+    decision = engine.evaluate(proposal, make_state(cash=5000.0), make_profile(),
+                               prices={"BRK": 2000.0}, trades_today=0)
+    assert decision.outcome is Outcome.REJECTED
+    assert any("position size" in r.lower() for r in decision.reasons)
+
+
+def test_small_trade_is_auto_approved():
+    engine = GuardrailsEngine()
+    # 3 shares * 100 = 300 notional < 500 threshold -> auto
+    proposal = open_long(qty=3, price=100.0)
+    decision = engine.evaluate(proposal, make_state(cash=5000.0), make_profile(),
+                               prices={"AAPL": 100.0}, trades_today=0)
+    assert decision.outcome is Outcome.APPROVED_AUTO
+    assert decision.quantity == 3
+
+
+def test_confirmation_threshold_uses_min_of_usd_and_pct():
+    engine = GuardrailsEngine()
+    # pct threshold 0.25 * 5000 = 1250; usd threshold 500 -> min is 500
+    # 6 shares * 100 = 600 > 500 -> confirmation
+    proposal = open_long(qty=6, price=100.0)
+    decision = engine.evaluate(proposal, make_state(cash=5000.0), make_profile(),
+                               prices={"AAPL": 100.0}, trades_today=0)
+    assert decision.outcome is Outcome.NEEDS_CONFIRMATION

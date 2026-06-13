@@ -81,5 +81,20 @@ class GuardrailsEngine:
         if reasons:
             return GuardrailDecision(Outcome.REJECTED, 0, reasons)
 
-        # Sizing + auto/confirmation split added in Task 5.
-        return GuardrailDecision(Outcome.APPROVED_AUTO, proposal.quantity, [])
+        # Sizing: trim opening trades to the per-position cap. Closing trades keep size.
+        quantity = proposal.quantity
+        if proposal.intent.is_opening:
+            quantity = checks.capped_quantity(
+                proposal.quantity, market, profile.max_position_pct, profile.budget)
+            if quantity <= 0:
+                return GuardrailDecision(
+                    Outcome.REJECTED, 0,
+                    ["Position size cap leaves zero shares for this price"])
+
+        # Auto-execute small trades; large ones need Telegram confirmation.
+        notional = quantity * market
+        threshold = min(profile.auto_exec_threshold_usd,
+                        profile.auto_exec_threshold_pct * profile.budget)
+        if notional > threshold:
+            return GuardrailDecision(Outcome.NEEDS_CONFIRMATION, quantity, [])
+        return GuardrailDecision(Outcome.APPROVED_AUTO, quantity, [])
