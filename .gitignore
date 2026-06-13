@@ -1,0 +1,23 @@
+# Secrets — never commit
+.env
+.env.*
+*.pem
+*.key
+
+# Local tooling
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Data / state
+*.sqlite
+*.sqlite3
+*.db
+data/
+logs/
