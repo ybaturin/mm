@@ -69,6 +69,12 @@ CREATE TABLE IF NOT EXISTS freezes (
     reason  TEXT NOT NULL,
     ts      TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS run_state (
+    scope   TEXT PRIMARY KEY,    -- 'GLOBAL' (один прогон за раз)
+    active  INTEGER NOT NULL,    -- 1 = идёт ежедневный цикл
+    since   TEXT                 -- ISO 8601 wall-clock момент захвата лока
+);
 """
 
 
