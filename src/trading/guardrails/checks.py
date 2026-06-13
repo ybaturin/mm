@@ -32,6 +32,25 @@ def stop_loss_ok(intent: Intent, stop: float | None, market: float) -> bool:
     return False
 
 
+def stop_loss_within_limit(intent: Intent, stop: float | None, market: float,
+                           max_loss_pct: float, tolerance: float = 0.005) -> bool:
+    """The stop must not permit a loss larger than the profile's stop_loss_pct.
+
+    A tighter (more protective) stop is fine; a looser one is rejected. The small
+    tolerance absorbs rounding in a proposed stop price. Side/presence is checked
+    separately by stop_loss_ok; here a None or wrong-side stop is treated as OK.
+    """
+    if not intent.is_opening or stop is None or market <= 0:
+        return True
+    if intent == Intent.OPEN_LONG:
+        loss_pct = (market - stop) / market
+    elif intent == Intent.OPEN_SHORT:
+        loss_pct = (stop - market) / market
+    else:
+        return True
+    return loss_pct <= max_loss_pct + tolerance
+
+
 def capped_quantity(qty: int, price: float, max_position_pct: float, budget: float) -> int:
     """Trim share count so notional does not exceed max_position_pct of budget.
 

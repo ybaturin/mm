@@ -70,9 +70,14 @@ class GuardrailsEngine:
             reasons.append(
                 f"Reference price {proposal.reference_price} too far from market {market}")
 
-        # 7. Stop loss validity (opening trades).
+        # 7. Stop loss validity (opening trades): present, correct side, and not looser
+        # than the profile's stop_loss_pct limit.
         if not checks.stop_loss_ok(proposal.intent, proposal.stop_loss_price, market):
             reasons.append("Missing or invalid stop-loss for opening trade")
+        elif not checks.stop_loss_within_limit(
+                proposal.intent, proposal.stop_loss_price, market, profile.stop_loss_pct):
+            reasons.append(
+                f"Stop-loss exceeds the {profile.stop_loss_pct:.0%} loss limit")
 
         # 8. Holdings sufficiency for closing trades.
         if proposal.intent in (Intent.CLOSE_LONG, Intent.CLOSE_SHORT):

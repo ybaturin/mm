@@ -79,6 +79,24 @@ def test_reject_short_when_profile_disallows():
     assert any("short" in r.lower() for r in decision.reasons)
 
 
+def test_reject_stop_loss_looser_than_profile_limit():
+    engine = GuardrailsEngine()
+    # profile limit 10%; a stop 20% below market permits too large a loss
+    loose = open_long(price=100.0, stop=80.0)
+    decision = engine.evaluate(loose, make_state(), make_profile(stop_loss_pct=0.10),
+                               prices={"AAPL": 100.0}, trades_today=0)
+    assert decision.outcome is Outcome.REJECTED
+    assert any("stop-loss" in r.lower() and "limit" in r.lower() for r in decision.reasons)
+
+
+def test_accept_stop_loss_within_profile_limit():
+    engine = GuardrailsEngine()
+    tight = open_long(qty=3, price=100.0, stop=95.0)   # 5% loss < 10% limit
+    decision = engine.evaluate(tight, make_state(), make_profile(stop_loss_pct=0.10),
+                               prices={"AAPL": 100.0}, trades_today=0)
+    assert decision.outcome is not Outcome.REJECTED
+
+
 def test_reject_missing_stop_on_open():
     engine = GuardrailsEngine()
     no_stop = open_long(stop=None)
