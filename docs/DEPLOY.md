@@ -49,9 +49,11 @@ overlap (`flock`) and a stuck run (`timeout 3600`). Edit with `ssh ... 'crontab 
 
 ## State
 
-- **`/root/mm/data/trading.db`** = the track record (decisions, fills, equity curve). **Do
-  not delete** — it feeds the go-live gate. Reset only on a config change that breaks
-  comparability (e.g. budgets/agents changed). Back up with `make backup`.
+- **Track record DB, separated by mode so fake/paper/live never commingle:**
+  `data/trading-fake.db` (BROKER=fake), `data/trading-paper.db` (IBKR paper, port 4002),
+  `data/trading-live.db` (IBKR live, port 4001). Switching to real money starts a clean
+  ledger. Override the path with `DB_PATH`. **Do not delete** the active one — it feeds the
+  go-live gate. Back up with `make backup`.
 - **`/root/mm/run.log`** = appended run output. Logs, not data; safe to truncate.
 
 ## Going to real money (later)

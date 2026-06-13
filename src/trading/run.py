@@ -75,12 +75,21 @@ def _broker_for(profile, index: int):
     return FakeBroker(cash=profile.budget)
 
 
+def _mode_tag() -> str:
+    """fake | paper | live — used to keep each mode's track record in its own DB."""
+    if os.environ.get("BROKER", "fake") != "ibkr":
+        return "fake"
+    return "live" if int(os.environ.get("IBKR_PORT", "4002")) == 4001 else "paper"
+
+
 def build_components():
     profiles = load_profiles("config/profiles.toml")
     universe = load_universe("config/universe.toml")
     source = YFinanceSource()
 
-    db_path = os.environ.get("DB_PATH", "data/trading.db")
+    # Separate the track record by mode so fake/paper/live NEVER commingle. Each gets its
+    # own DB file; switching to real money starts a clean ledger. Override with DB_PATH.
+    db_path = os.environ.get("DB_PATH") or f"data/trading-{_mode_tag()}.db"
     os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     conn = connect(db_path)
     init_db(conn)
