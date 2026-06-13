@@ -128,3 +128,57 @@ class Bot:
                 time.sleep(3)        # daily cycle owns Telegram right now
                 continue
             offset = next_offset
+
+
+def build_bot():
+    """Assemble the bot from the environment (mirrors run.py wiring)."""
+    import os
+
+    import httpx
+
+    from trading.config import load_profiles
+    from trading.data.briefing import load_universe
+    from trading.data.yfinance_source import YFinanceSource
+    from trading.persistence.accounts import AccountRepository
+    from trading.persistence.db import connect
+    from trading.persistence.freezes import FreezeStore
+    from trading.persistence.journal import JournalRepository
+    from trading.persistence.runlock import RunLock
+    from trading.persistence.schema import init_db
+    from trading.reporting.telegram import resolve_admin_ids
+
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    db_path = os.environ.get("DB_PATH", "data/trading.db")
+
+    conn = connect(db_path)
+    conn.execute("PRAGMA busy_timeout = 5000")    # tolerate the daily run's brief writes
+    init_db(conn)
+
+    profiles = load_profiles("config/profiles.toml")
+    load_universe("config/universe.toml")         # validate config presence at startup
+    source = YFinanceSource()
+
+    def price_fn(symbol: str) -> float:
+        return source.latest_price(symbol)
+
+    return Bot(
+        client=httpx.Client(timeout=30.0),
+        base=f"https://api.telegram.org/bot{token}",
+        accounts=AccountRepository(conn),
+        journal=JournalRepository(conn),
+        freezes=FreezeStore(conn),
+        run_lock=RunLock(conn),
+        agent_ids=list(profiles.keys()),
+        price_fn=price_fn,
+        chat_id=chat_id,
+        admin_ids=resolve_admin_ids(chat_id),
+    )
+
+
+def main() -> None:
+    build_bot().run_forever()
+
+
+if __name__ == "__main__":
+    main()
