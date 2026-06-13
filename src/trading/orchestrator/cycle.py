@@ -38,6 +38,7 @@ def run_cycle(
     ts: str,
     confirm: ConfirmFn | None = None,
     panel=None,
+    notifier=None,
 ) -> AgentState:
     """Run one agent's full daily cycle. The keystone that connects every component.
 
@@ -86,6 +87,9 @@ def run_cycle(
         fill = broker.place_market_order(proposal.symbol, entry_action, decision.quantity)
         journal.record_fill(ts, agent_id, proposal.symbol, proposal.intent,
                             fill.quantity, fill.price, decision_id)
+        if notifier is not None:
+            from trading.reporting.format import format_fill
+            notifier.notify(format_fill(agent_id, fill))
 
         # Transmit the protective stop to the broker so the position is guarded
         # between daily runs — not just journaled. Guardrails guarantee a valid

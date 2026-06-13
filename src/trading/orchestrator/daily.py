@@ -9,7 +9,7 @@ from trading.orchestrator.strategy import Strategy
 from trading.persistence.accounts import AccountRepository
 from trading.persistence.freezes import GLOBAL, FreezeStore
 from trading.persistence.journal import JournalRepository
-from trading.reporting.format import format_alert, format_digest, intent_label
+from trading.reporting.format import format_alert, format_digest, format_pnl, intent_label
 from trading.reporting.notifier import Notifier, make_confirm
 from trading.safety.reconcile import reconcile
 from trading.safety.watchdog import Watchdog, flatten
@@ -58,6 +58,9 @@ def run_daily(
     if confirm is None:
         confirm = make_confirm(notifier)
 
+    pnl_start_total = 0.0
+    pnl_end_total = 0.0
+
     for name, profile in profiles.items():
         if freezes.is_frozen(GLOBAL):
             notifier.notify(format_alert("frozen", f"GLOBAL halt active — {name} skipped"))
@@ -80,7 +83,7 @@ def run_daily(
             run_cycle(
                 agent_id=name, profile=profile, broker=broker, source=source,
                 accounts=accounts, journal=journal, strategy=strategy, universe=universe,
-                as_of_date=as_of_date, ts=ts, confirm=confirm, panel=panel,
+                as_of_date=as_of_date, ts=ts, confirm=confirm, panel=panel, notifier=notifier,
             )
 
             post = accounts.get_state(name)
@@ -109,8 +112,18 @@ def run_daily(
 
             executed, rejected, vetoed = _summary(journal, name, as_of_date)
             notifier.notify(format_digest(name, as_of_date, executed, rejected, vetoed))
+
+            # Per-agent P&L (budget -> current equity), and accumulate the portfolio total.
+            final_equity = post.equity(prices)
+            notifier.notify(format_pnl(name, profile.budget, final_equity))
+            pnl_start_total += profile.budget
+            pnl_end_total += final_equity
         except Exception as exc:  # noqa: BLE001 — one agent's failure must not sink the rest
             freezes.freeze(name, f"run error: {exc}", ts)
             notifier.notify(format_alert(
                 "error", f"{name}: run failed — {exc} — frozen pending review"))
             continue
+
+    # Portfolio-wide P&L across the agents that completed today.
+    if pnl_start_total > 0:
+        notifier.notify(format_pnl("ИТОГО", pnl_start_total, pnl_end_total))

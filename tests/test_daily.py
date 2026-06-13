@@ -91,6 +91,37 @@ def test_run_daily_executes_and_sends_a_digest_per_agent(env):
     assert brokers["moderate"].positions()
 
 
+def test_run_daily_sends_per_trade_fill_and_pnl(env):
+    accounts, journal, freezes = env
+    profiles = {"moderate": profile("moderate")}
+    universe = ["AAPL"]
+    source = FakeMarketDataSource({"AAPL": uptrend()})
+    brokers = fresh_brokers(profiles, source, universe)
+    notifier = FakeNotifier(confirm_result=True)
+
+    run_daily(profiles=profiles, brokers=brokers, source=source, strategy=FakeStrategy(),
+              panel=AllowingPanel(), notifier=notifier, accounts=accounts, journal=journal,
+              freezes=freezes, universe=universe, as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
+
+    assert any("Покупка" in m for m in notifier.messages)   # a per-trade fill notification
+    assert any("P&L" in m for m in notifier.messages)       # a per-agent P&L line
+
+
+def test_run_daily_sends_aggregate_pnl_total(env):
+    accounts, journal, freezes = env
+    profiles = {"moderate": profile("moderate"), "aggressive": profile("aggressive")}
+    universe = ["AAPL"]
+    source = FakeMarketDataSource({"AAPL": uptrend()})
+    brokers = fresh_brokers(profiles, source, universe)
+    notifier = FakeNotifier(confirm_result=True)
+
+    run_daily(profiles=profiles, brokers=brokers, source=source, strategy=FakeStrategy(),
+              panel=AllowingPanel(), notifier=notifier, accounts=accounts, journal=journal,
+              freezes=freezes, universe=universe, as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
+
+    assert any("ИТОГО" in m for m in notifier.messages)     # portfolio-wide P&L total
+
+
 def test_run_daily_skips_frozen_agent(env):
     accounts, journal, freezes = env
     profiles = {"moderate": profile("moderate")}
