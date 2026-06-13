@@ -56,3 +56,29 @@ def test_decisions_for_filters_by_agent_and_orders_by_time(repo):
 
     rows = repo.decisions_for("moderate")
     assert [r["symbol"] for r in rows] == ["AAPL", "MSFT"]
+
+
+def test_record_fill_links_to_decision(repo):
+    did = repo.record_decision("2026-06-15T13:00:00Z", proposal(),
+                               GuardrailDecision(Outcome.APPROVED_AUTO, 3, []))
+    repo.record_fill("2026-06-15T13:30:00Z", agent_id="moderate", symbol="AAPL",
+                     intent=Intent.OPEN_LONG, quantity=3, price=101.5, decision_id=did)
+    fills = repo.fills_for("moderate")
+    assert len(fills) == 1
+    assert fills[0]["quantity"] == 3
+    assert fills[0]["price"] == 101.5
+    assert fills[0]["decision_id"] == did
+
+
+def test_record_fill_allows_null_decision(repo):
+    repo.record_fill("2026-06-15T13:30:00Z", agent_id="moderate", symbol="AAPL",
+                     intent=Intent.CLOSE_LONG, quantity=3, price=101.5, decision_id=None)
+    assert repo.fills_for("moderate")[0]["decision_id"] is None
+
+
+def test_equity_snapshot_upserts_by_date(repo):
+    repo.record_equity_snapshot("moderate", "2026-06-15", 5010.0)
+    repo.record_equity_snapshot("moderate", "2026-06-16", 4980.0)
+    repo.record_equity_snapshot("moderate", "2026-06-16", 4990.0)  # same date overwrites
+    curve = repo.equity_curve("moderate")
+    assert curve == [("2026-06-15", 5010.0), ("2026-06-16", 4990.0)]
