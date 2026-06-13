@@ -48,6 +48,7 @@ def run_daily(
     ts: str,
     floor_fraction: float = 0.8,
     confirm=None,
+    run_lock=None,
 ) -> None:
     """Run the full pre-market cycle for every agent. The production keystone.
 
@@ -55,7 +56,25 @@ def run_daily(
     Telegram confirm) -> drawdown suspension -> watchdog (flatten + freeze on breach)
     -> digest. Each agent runs in isolation: a failure freezes that agent and alerts,
     but never aborts the rest of the run or disables their safety checks.
+
+    Held under run_lock (if given) so the command daemon pauses its getUpdates polling
+    for the duration — only one process may consume Telegram updates at a time.
     """
+    if run_lock is not None:
+        run_lock.acquire()
+    try:
+        _run_daily_body(
+            profiles, brokers, source, strategy, panel, notifier, accounts, journal,
+            freezes, universe, as_of_date, ts, floor_fraction, confirm)
+    finally:
+        if run_lock is not None:
+            run_lock.release()
+
+
+def _run_daily_body(
+    profiles, brokers, source, strategy, panel, notifier, accounts, journal,
+    freezes, universe, as_of_date, ts, floor_fraction, confirm,
+) -> None:
     if confirm is None:
         confirm = make_confirm(notifier)
 

@@ -272,6 +272,36 @@ def test_run_daily_global_fuse_halts_everyone_on_portfolio_breach(env):
     assert any("global" in m.lower() for m in notifier.messages)
 
 
+def test_run_daily_acquires_and_releases_run_lock(env):
+    """run_daily holds the lock for the run and releases it in finally."""
+    from trading.persistence.runlock import RunLock
+
+    accounts, journal, freezes = env
+    profiles = {"moderate": profile("moderate")}
+    universe = ["AAPL"]
+    source = FakeMarketDataSource({"AAPL": uptrend()})
+    brokers = fresh_brokers(profiles, source, universe)
+    notifier = FakeNotifier(confirm_result=True)
+
+    seen = {}
+
+    class _Spy(RunLock):
+        def acquire(self, *a, **k):
+            k.setdefault("now_iso", "2026-06-15T13:30:00Z")
+            super().acquire(*a, **k)
+            seen["active_during"] = self.is_active(now_iso="2026-06-15T13:30:10Z")
+
+    spy = _Spy(accounts.conn)
+
+    run_daily(profiles=profiles, brokers=brokers, source=source, strategy=FakeStrategy(),
+              panel=AllowingPanel(), notifier=notifier, accounts=accounts, journal=journal,
+              freezes=freezes, universe=universe, as_of_date="2026-06-15",
+              ts="2026-06-15T13:30:00Z", run_lock=spy)
+
+    assert seen["active_during"] is True
+    assert RunLock(accounts.conn).is_active(now_iso="2026-06-15T13:30:10Z") is False
+
+
 def test_run_daily_freezes_on_reconciliation_mismatch(env):
     accounts, journal, freezes = env
     profiles = {"moderate": profile("moderate")}

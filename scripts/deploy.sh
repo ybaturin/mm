@@ -15,6 +15,9 @@ HOST="${1:?usage: scripts/deploy.sh user@host}"
 KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 REMOTE_DIR="${REMOTE_DIR:-/root/mm}"
 
+echo ">> running tests locally before shipping anything"
+uv run pytest -q || { echo "!! tests are red — refusing to deploy. Fix them first."; exit 1; }
+
 echo ">> syncing code to $HOST:$REMOTE_DIR"
 # NOTE: exclude '/data' is anchored to the repo root on purpose — a bare 'data'
 # would also wrongly exclude src/trading/data. Do not change it to 'data'.
