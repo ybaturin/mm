@@ -52,7 +52,7 @@ def run_cycle(
 
     held = [p.symbol for p in broker.positions()]
     symbols = sorted(set(universe) | set(held))
-    prices = {s: source.latest_price(s) for s in symbols}
+    prices = {s: source.latest_price(s, as_of_date=as_of_date) for s in symbols}
 
     def equity_now() -> float:
         return broker.cash() + sum(p.quantity * prices[p.symbol] for p in broker.positions())

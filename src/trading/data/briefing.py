@@ -52,7 +52,8 @@ def build_briefing(
     briefs: list[SymbolBrief] = []
     prices: dict[str, float] = {}
     for symbol in symbols:
-        closes = [b.close for b in source.history(symbol, days=lookback_days)]
+        closes = [b.close for b in source.history(symbol, days=lookback_days,
+                                                  as_of_date=as_of_date)]
         price = closes[-1]
         prices[symbol] = price
         position = held.get(symbol)

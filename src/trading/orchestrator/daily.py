@@ -9,21 +9,23 @@ from trading.orchestrator.strategy import Strategy
 from trading.persistence.accounts import AccountRepository
 from trading.persistence.freezes import GLOBAL, FreezeStore
 from trading.persistence.journal import JournalRepository
-from trading.reporting.format import format_alert, format_digest
+from trading.reporting.format import format_alert, format_digest, intent_label
 from trading.reporting.notifier import Notifier, make_confirm
 from trading.safety.reconcile import reconcile
 from trading.safety.watchdog import Watchdog, flatten
 
 
-def _prices_for(source: MarketDataSource, symbols) -> dict[str, float]:
+def _prices_for(source: MarketDataSource, symbols,
+                as_of_date: str | None = None) -> dict[str, float]:
     """Price the union of the universe and everything the broker holds, so the safety
     checks never KeyError on a symbol that was dropped from the universe while held."""
-    return {s: source.latest_price(s) for s in symbols}
+    return {s: source.latest_price(s, as_of_date=as_of_date) for s in symbols}
 
 
 def _summary(journal: JournalRepository, agent_id: str, date: str):
     fills = [r for r in journal.fills_for(agent_id) if r["ts"].startswith(date)]
-    executed = [f'{r["intent"]} {r["quantity"]} {r["symbol"]} @ {r["price"]:g}' for r in fills]
+    executed = [f'{intent_label(r["intent"])} {r["quantity"]} {r["symbol"]} @ {r["price"]:g}'
+                for r in fills]
     rejected = sum(1 for r in journal.decisions_for(agent_id)
                    if r["ts"].startswith(date) and r["outcome"] == "rejected")
     vetoed = sum(1 for r in journal.vetoes_for(agent_id) if r["ts"].startswith(date))
@@ -44,6 +46,7 @@ def run_daily(
     as_of_date: str,
     ts: str,
     floor_fraction: float = 0.8,
+    confirm=None,
 ) -> None:
     """Run the full pre-market cycle for every agent. The production keystone.
 
@@ -52,7 +55,8 @@ def run_daily(
     -> digest. Each agent runs in isolation: a failure freezes that agent and alerts,
     but never aborts the rest of the run or disables their safety checks.
     """
-    confirm = make_confirm(notifier)
+    if confirm is None:
+        confirm = make_confirm(notifier)
 
     for name, profile in profiles.items():
         if freezes.is_frozen(GLOBAL):
@@ -80,7 +84,8 @@ def run_daily(
             )
 
             post = accounts.get_state(name)
-            prices = _prices_for(source, set(universe) | {p.symbol for p in broker.positions()})
+            prices = _prices_for(source, set(universe) | {p.symbol for p in broker.positions()},
+                                 as_of_date=as_of_date)
 
             # Drawdown kill-switch: durable suspension pending manual review. Fires
             # earlier than the NAV watchdog and leaves positions in place.

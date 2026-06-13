@@ -29,3 +29,14 @@ def test_unknown_symbol_raises():
     src = FakeMarketDataSource({})
     with pytest.raises(KeyError):
         src.history("ZZZ", days=5)
+
+
+def test_history_respects_as_of_date():
+    src = FakeMarketDataSource({"AAPL": bars([10, 11, 12])})   # 06-01, 06-02, 06-03
+    hist = src.history("AAPL", days=10, as_of_date="2026-06-02")
+    assert [b.close for b in hist] == [10, 11]                 # no bar after the as-of date
+
+
+def test_latest_price_respects_as_of_date():
+    src = FakeMarketDataSource({"AAPL": bars([10, 11, 12])})
+    assert src.latest_price("AAPL", as_of_date="2026-06-02") == 11

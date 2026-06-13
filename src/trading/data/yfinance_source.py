@@ -23,7 +23,8 @@ def bars_from_dataframe(df) -> list[Bar]:
 class YFinanceSource:
     """Free market data via yfinance. Satisfies MarketDataSource."""
 
-    def history(self, symbol: str, days: int) -> list[Bar]:
+    def history(self, symbol: str, days: int,
+                as_of_date: str | None = None) -> list[Bar]:
         import yfinance as yf
 
         # Pad the calendar window so we clear weekends/holidays, then trim to `days`.
@@ -31,10 +32,14 @@ class YFinanceSource:
         df = yf.Ticker(symbol).history(period=f"{period_days}d", interval="1d")
         if df.empty:
             raise KeyError(symbol)
-        return bars_from_dataframe(df)[-days:]
+        bars = bars_from_dataframe(df)
+        if as_of_date is not None:
+            # Point-in-time: drop anything after the as-of date (no look-ahead).
+            bars = [b for b in bars if b.date <= as_of_date]
+        return bars[-days:]
 
-    def latest_price(self, symbol: str) -> float:
-        bars = self.history(symbol, days=1)
+    def latest_price(self, symbol: str, as_of_date: str | None = None) -> float:
+        bars = self.history(symbol, days=1, as_of_date=as_of_date)
         if not bars:
             raise KeyError(symbol)
         return bars[-1].close
