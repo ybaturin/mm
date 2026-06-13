@@ -36,6 +36,7 @@ def run_cycle(
     as_of_date: str,
     ts: str,
     confirm: ConfirmFn | None = None,
+    panel=None,
 ) -> AgentState:
     """Run one agent's full daily cycle. The keystone that connects every component.
 
@@ -58,8 +59,8 @@ def run_cycle(
     peak = max(prev.peak_equity, start_equity) if prev else start_equity
 
     state = _state_from_broker(agent_id, broker, peak, start_equity)
-    proposals = strategy.propose(
-        build_briefing(state, universe, source, as_of_date), profile)
+    briefing = build_briefing(state, universe, source, as_of_date)
+    proposals = strategy.propose(briefing, profile)
 
     trades_today = 0
     for proposal in proposals:
@@ -70,6 +71,12 @@ def run_cycle(
             continue
         if decision.outcome is Outcome.NEEDS_CONFIRMATION and not confirm(proposal, decision):
             continue
+
+        if panel is not None:
+            result = panel.review(proposal, briefing, profile.veto_rule)
+            if result.blocked:
+                journal.record_veto(ts, agent_id, proposal, decision.quantity, result.verdicts)
+                continue
 
         fill = broker.place_market_order(
             proposal.symbol, action_for(proposal.intent), decision.quantity)
