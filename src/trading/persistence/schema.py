@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS vetoes (
     quantity  INTEGER NOT NULL,
     verdicts  TEXT NOT NULL          -- JSON: [{role, veto, reason}, ...]
 );
+
+CREATE TABLE IF NOT EXISTS freezes (
+    scope   TEXT PRIMARY KEY,    -- an agent_id, or 'GLOBAL'
+    reason  TEXT NOT NULL,
+    ts      TEXT NOT NULL
+);
 """
 
 
