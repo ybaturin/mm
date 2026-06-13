@@ -141,3 +141,30 @@ def test_poll_once_processes_updates_when_unlocked(bot):
     new_offset = b.poll_once(offset=None, now_iso="2026-06-13T13:30:10Z")
     assert client.sent                     # /status handled
     assert new_offset == 2                 # update_id (1) + 1
+
+
+def test_poll_once_survives_handler_error(bot):
+    b, client = bot
+
+    def boom(upd):
+        raise RuntimeError("boom")
+
+    b.handle_update = boom
+
+    def fake_get(url, params=None):
+        return FakeClient._Resp({"ok": True, "result": [_message("/positions")]})
+
+    b.client.get = fake_get
+    # the bad update must not propagate; offset still advances past it
+    assert b.poll_once(offset=None, now_iso="2026-06-13T13:30:10Z") == 2
+
+
+def test_poll_once_handles_getupdates_conflict(bot):
+    b, client = bot
+
+    def fake_get(url, params=None):
+        return FakeClient._Resp({"ok": False, "error_code": 409, "description": "Conflict"})
+
+    b.client.get = fake_get
+    # a 409 (another getUpdates consumer) must not crash; offset is preserved
+    assert b.poll_once(offset=5, now_iso="2026-06-13T13:30:10Z") == 5
