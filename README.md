@@ -12,6 +12,9 @@ See `docs/superpowers/specs/2026-06-13-ibkr-trading-agents-design.md` for the fu
 - Plan 5 of 10: Agent Core — Claude turns a briefing into trade proposals. ✓
 - Plan 6 of 10: Orchestrator + Simulation — run_cycle wires the whole pipeline; a
   multi-day simulation proves the scheme end-to-end with no live money. ✓
+- Plan 7 of 10: Validation Panel — role-diverse Claude validators (skeptic / catalyst /
+  devil's advocate) that can veto a proposal after guardrails; subtractive only,
+  per-profile veto rule, every veto logged. Optional step in run_cycle. ✓
 
 Run the whole scheme on synthetic data (deterministic, free, no API key, no IBKR):
 
