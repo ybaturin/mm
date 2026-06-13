@@ -36,3 +36,12 @@ def test_record_and_read_veto(repo):
     assert rows[0]["symbol"] == "AAPL"
     assert rows[0]["quantity"] == 5
     assert "earnings tomorrow" in rows[0]["verdicts"]      # JSON text contains the reasons
+
+
+def test_veto_records_entry_price_for_counterfactual(repo):
+    proposal = TradeProposal(agent_id="moderate", symbol="AAPL", intent=Intent.OPEN_LONG,
+                             quantity=5, reference_price=160.0, stop_loss_price=145.0, rationale="x")
+    repo.record_veto("2026-06-15T13:00:00Z", "moderate", proposal, quantity=5,
+                     verdicts=[RoleVerdict("risk_skeptic", True, "no")], entry_price=161.5)
+    # The would-be entry price is captured so the panel's payoff can be evaluated later.
+    assert repo.vetoes_for("moderate")[0]["entry_price"] == 161.5

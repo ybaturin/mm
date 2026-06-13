@@ -80,7 +80,8 @@ def run_cycle(
         if panel is not None:
             result = panel.review(proposal, briefing, profile.veto_rule)
             if result.blocked:
-                journal.record_veto(ts, agent_id, proposal, decision.quantity, result.verdicts)
+                journal.record_veto(ts, agent_id, proposal, decision.quantity,
+                                    result.verdicts, entry_price=prices.get(proposal.symbol))
                 continue
 
         entry_action = action_for(proposal.intent)

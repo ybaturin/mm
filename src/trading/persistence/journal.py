@@ -85,14 +85,15 @@ class JournalRepository:
         ).fetchall()
         return [(r["date"], r["equity"]) for r in rows]
 
-    def record_veto(self, ts: str, agent_id: str, proposal, quantity: int, verdicts) -> int:
+    def record_veto(self, ts: str, agent_id: str, proposal, quantity: int, verdicts,
+                    entry_price: float | None = None) -> int:
         cur = self.conn.execute(
             """
-            INSERT INTO vetoes (ts, agent_id, symbol, intent, quantity, verdicts)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO vetoes (ts, agent_id, symbol, intent, quantity, verdicts, entry_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (ts, agent_id, proposal.symbol, proposal.intent.value, quantity,
-             json.dumps([asdict(v) for v in verdicts])),
+             json.dumps([asdict(v) for v in verdicts]), entry_price),
         )
         self.conn.commit()
         return cur.lastrowid

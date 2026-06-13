@@ -54,13 +54,14 @@ CREATE TABLE IF NOT EXISTS equity_snapshots (
 );
 
 CREATE TABLE IF NOT EXISTS vetoes (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    ts        TEXT NOT NULL,
-    agent_id  TEXT NOT NULL,
-    symbol    TEXT NOT NULL,
-    intent    TEXT NOT NULL,
-    quantity  INTEGER NOT NULL,
-    verdicts  TEXT NOT NULL          -- JSON: [{role, veto, reason}, ...]
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts           TEXT NOT NULL,
+    agent_id     TEXT NOT NULL,
+    symbol       TEXT NOT NULL,
+    intent       TEXT NOT NULL,
+    quantity     INTEGER NOT NULL,
+    verdicts     TEXT NOT NULL,      -- JSON: [{role, veto, reason}, ...]
+    entry_price  REAL                -- market price at veto time, for counterfactual P&L
 );
 
 CREATE TABLE IF NOT EXISTS freezes (
