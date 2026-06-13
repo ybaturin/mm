@@ -52,6 +52,16 @@ CREATE TABLE IF NOT EXISTS equity_snapshots (
     equity    REAL NOT NULL,
     PRIMARY KEY (agent_id, date)
 );
+
+CREATE TABLE IF NOT EXISTS vetoes (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts        TEXT NOT NULL,
+    agent_id  TEXT NOT NULL,
+    symbol    TEXT NOT NULL,
+    intent    TEXT NOT NULL,
+    quantity  INTEGER NOT NULL,
+    verdicts  TEXT NOT NULL          -- JSON: [{role, veto, reason}, ...]
+);
 """
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import asdict
 
 from trading.domain import Intent, TradeProposal
 from trading.guardrails.engine import GuardrailDecision
@@ -83,3 +84,21 @@ class JournalRepository:
             (agent_id,),
         ).fetchall()
         return [(r["date"], r["equity"]) for r in rows]
+
+    def record_veto(self, ts: str, agent_id: str, proposal, quantity: int, verdicts) -> int:
+        cur = self.conn.execute(
+            """
+            INSERT INTO vetoes (ts, agent_id, symbol, intent, quantity, verdicts)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (ts, agent_id, proposal.symbol, proposal.intent.value, quantity,
+             json.dumps([asdict(v) for v in verdicts])),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def vetoes_for(self, agent_id: str) -> list[sqlite3.Row]:
+        return self.conn.execute(
+            "SELECT * FROM vetoes WHERE agent_id = ? ORDER BY ts, id",
+            (agent_id,),
+        ).fetchall()
