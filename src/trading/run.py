@@ -60,10 +60,14 @@ def _broker_for(profile, index: int):
     if os.environ.get("BROKER", "fake") == "ibkr":
         from trading.broker.ibkr import IBKRBroker
         base = int(os.environ.get("IBKR_CLIENT_ID_BASE", "1"))
+        # Each agent trades its OWN IBKR account so positions/cash never commingle.
+        # IBKR_ACCOUNTS is a comma-separated list aligned to the profile order.
+        accounts = [a.strip() for a in os.environ.get("IBKR_ACCOUNTS", "").split(",") if a.strip()]
         broker = IBKRBroker(
             host=os.environ.get("IBKR_HOST", "127.0.0.1"),
             port=int(os.environ.get("IBKR_PORT", "4002")),
             client_id=base + index,
+            account=accounts[index] if index < len(accounts) else None,
         )
         broker.connect()
         return broker

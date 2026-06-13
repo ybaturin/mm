@@ -74,6 +74,38 @@ def test_ibkr_broker_reads_cash_via_injected_ib():
     assert IBKRBroker(ib=fake_ib).cash() == pytest.approx(4200.0)
 
 
+def test_ibkr_broker_scopes_positions_to_its_account():
+    captured = {}
+
+    def positions(account=""):
+        captured["account"] = account
+        return []
+
+    fake_ib = SimpleNamespace(positions=positions)
+    IBKRBroker(ib=fake_ib, account="DU123").positions()
+    assert captured["account"] == "DU123"          # query scoped to this agent's account
+
+
+def test_ibkr_broker_tags_orders_with_its_account():
+    placed = {}
+
+    class _Trade:
+        order = SimpleNamespace(orderId=1)
+        fills = [SimpleNamespace(execution=SimpleNamespace(shares=1, price=100.0))]
+
+        def isDone(self):
+            return True
+
+    def place(contract, order):
+        placed["account"] = order.account
+        return _Trade()
+
+    fake_ib = SimpleNamespace(qualifyContracts=lambda c: None, placeOrder=place,
+                              waitOnUpdate=lambda timeout=1: None)
+    IBKRBroker(ib=fake_ib, account="DU123").place_market_order("AAPL", Action.BUY, 1)
+    assert placed["account"] == "DU123"            # order routed to this agent's account
+
+
 def test_place_market_order_times_out_when_never_filled():
     class _NeverDone:
         order = SimpleNamespace(orderId=7)

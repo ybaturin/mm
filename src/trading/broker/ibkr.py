@@ -45,7 +45,7 @@ class IBKRBroker:
 
     def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
                  client_id: int = DEFAULT_CLIENT_ID, ib=None,
-                 order_timeout: float = 60.0) -> None:
+                 order_timeout: float = 60.0, account: str | None = None) -> None:
         if ib is None:
             from ib_async import IB
             ib = IB()
@@ -54,6 +54,14 @@ class IBKRBroker:
         self.port = port
         self.client_id = client_id
         self.order_timeout = order_timeout
+        # IBKR account code: each agent trades its own account so positions/cash never
+        # commingle. None = the connection's default (single-account) account.
+        self.account = account
+
+    def _place(self, contract, order):
+        if self.account:
+            order.account = self.account
+        return self.ib.placeOrder(contract, order)
 
     def connect(self) -> None:
         self.ib.connect(self.host, self.port, clientId=self.client_id)
@@ -65,10 +73,12 @@ class IBKRBroker:
         return self.ib.isConnected()
 
     def cash(self) -> float:
-        return cash_from_account_values(self.ib.accountValues())
+        vals = self.ib.accountValues(self.account) if self.account else self.ib.accountValues()
+        return cash_from_account_values(vals)
 
     def positions(self) -> list[Position]:
-        return [position_from_ib(p) for p in self.ib.positions()]
+        raw = self.ib.positions(self.account) if self.account else self.ib.positions()
+        return [position_from_ib(p) for p in raw]
 
     def place_market_order(self, symbol: str, action: Action, quantity: int) -> Fill:
         import time
@@ -76,7 +86,7 @@ class IBKRBroker:
         from ib_async import MarketOrder, Stock
         contract = Stock(symbol, "SMART", "USD")
         self.ib.qualifyContracts(contract)
-        trade = self.ib.placeOrder(contract, MarketOrder(action.value, quantity))
+        trade = self._place(contract, MarketOrder(action.value, quantity))
         # Bounded wait: never block the whole daily run forever on a stalled order.
         deadline = time.monotonic() + self.order_timeout
         while not trade.isDone():
@@ -91,7 +101,7 @@ class IBKRBroker:
         from ib_async import StopOrder, Stock
         contract = Stock(symbol, "SMART", "USD")
         self.ib.qualifyContracts(contract)
-        trade = self.ib.placeOrder(contract, StopOrder(action.value, quantity, stop_price))
+        trade = self._place(contract, StopOrder(action.value, quantity, stop_price))
         return str(trade.order.orderId)
 
     def cancel_all(self) -> None:
