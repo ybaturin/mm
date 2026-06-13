@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+from trading.broker.types import Action, Fill
+from trading.domain import Position
+
+
+class Broker(Protocol):
+    """The system's only window to a brokerage account.
+
+    Market data (prices) is intentionally NOT here — that is the Data Collector's job.
+    """
+
+    def connect(self) -> None: ...
+    def disconnect(self) -> None: ...
+    def is_connected(self) -> bool: ...
+    def cash(self) -> float: ...
+    def positions(self) -> list[Position]: ...
+    def place_market_order(self, symbol: str, action: Action, quantity: int) -> Fill: ...
+    def place_stop_order(
+        self, symbol: str, action: Action, quantity: int, stop_price: float
+    ) -> str: ...
