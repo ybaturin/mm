@@ -3,7 +3,9 @@ name = "trading"
 version = "0.1.0"
 description = "IBKR trading agents — guardrails core"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "ib-async>=2.1.0",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]
