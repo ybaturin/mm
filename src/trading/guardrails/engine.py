@@ -30,6 +30,7 @@ class GuardrailsEngine:
         profile: RiskProfile,
         prices: dict[str, float],
         trades_today: int,
+        universe: set[str] | None = None,
     ) -> GuardrailDecision:
         reasons: list[str] = []
 
@@ -38,6 +39,12 @@ class GuardrailsEngine:
         if market is None or market <= 0:
             return GuardrailDecision(Outcome.REJECTED, 0,
                                      [f"No market price for {proposal.symbol}"])
+
+        # 1b. Whitelist: only OPEN positions in allowed symbols. Closing trades are
+        # always permitted so a holding dropped from the universe can still be exited.
+        if (universe is not None and proposal.intent.is_opening
+                and proposal.symbol not in universe):
+            reasons.append(f"{proposal.symbol} is not in the allowed universe")
 
         # 2. Daily-loss kill switch (freezes new and closing activity for the day).
         equity_now = state.equity(prices)

@@ -67,7 +67,8 @@ def run_cycle(
 
     trades_today = 0
     for proposal in proposals:
-        decision = engine.evaluate(proposal, state, profile, prices, trades_today)
+        decision = engine.evaluate(proposal, state, profile, prices, trades_today,
+                                   universe=set(universe))
         decision_id = journal.record_decision(ts, proposal, decision)
 
         if decision.outcome is Outcome.REJECTED:

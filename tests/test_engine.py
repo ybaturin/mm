@@ -39,6 +39,27 @@ def test_reject_unknown_symbol():
     assert any("price" in r.lower() for r in decision.reasons)
 
 
+def test_reject_opening_symbol_outside_universe():
+    engine = GuardrailsEngine()
+    # symbol has a price but is NOT in the allowed universe -> opening is rejected
+    decision = engine.evaluate(open_long(), make_state(), make_profile(),
+                               prices={"AAPL": 100.0}, trades_today=0,
+                               universe={"MSFT", "NVDA"})
+    assert decision.outcome is Outcome.REJECTED
+    assert any("universe" in r.lower() for r in decision.reasons)
+
+
+def test_allow_closing_symbol_outside_universe():
+    engine = GuardrailsEngine()
+    close = TradeProposal(agent_id="moderate", symbol="AAPL", intent=Intent.CLOSE_LONG,
+                          quantity=3, reference_price=100.0, stop_loss_price=None, rationale="x")
+    state = make_state(positions=[Position(symbol="AAPL", quantity=3, avg_price=90.0)])
+    decision = engine.evaluate(close, state, make_profile(),
+                               prices={"AAPL": 100.0}, trades_today=0,
+                               universe={"MSFT"})        # AAPL dropped from universe but held
+    assert decision.outcome is not Outcome.REJECTED      # must still be allowed to exit
+
+
 def test_reject_stale_reference_price():
     engine = GuardrailsEngine()
     proposal = open_long(price=50.0)        # claims 50
