@@ -24,6 +24,10 @@ COMMANDS = [
     {"command": "trades", "description": "Последние сделки"},
 ]
 
+WELCOME = "👋 Бот торговой системы.\n\nКоманды:\n" + "\n".join(
+    f"• /{c['command']} — {c['description']}" for c in COMMANDS
+) + "\n\nМеню команд — кнопка «/» слева от поля ввода."
+
 
 class Bot:
     """Telegram command dispatcher: reads the DB and answers /positions, /pnl,
@@ -90,7 +94,9 @@ class Bot:
         cmd = parts[0].split("@")[0].lstrip("/")   # tolerate /cmd@botname
         arg = parts[1] if len(parts) > 1 else None
 
-        if cmd == "positions":
+        if cmd in ("start", "help"):
+            self._send(WELCOME)
+        elif cmd == "positions":
             self._send(format_positions(
                 positions_report(self.accounts, self.agent_ids, self.price_fn)))
         elif cmd == "status":

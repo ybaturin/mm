@@ -112,6 +112,17 @@ def test_ignores_non_admin(bot):
     assert client.sent == []
 
 
+def test_start_command_greets_and_lists_commands(bot):
+    b, client = bot
+    b.handle_update(_message("/start"))
+    assert client.sent
+    text = client.sent[0][0]
+    assert "/positions" in text
+    assert "/pnl" in text
+    assert "/status" in text
+    assert "/trades" in text
+
+
 def test_poll_once_skips_when_run_lock_active(bot):
     b, client = bot
     b.run_lock.acquire(now_iso="2026-06-13T13:30:00Z")
