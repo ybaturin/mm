@@ -1,0 +1,22 @@
+# Keep secrets, local state, and noise out of the build context.
+.git
+.gitignore
+.idea/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets and runtime state (never in an image)
+.env
+.env.*
+!.env.example
+data/
+*.db
+backup-*.db
+
+# Not needed at runtime
+tests/
+docs/
+*.md
