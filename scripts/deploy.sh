@@ -30,5 +30,8 @@ rsync -az --delete -e "ssh -i $KEY" \
 echo ">> provisioning on $HOST"
 ssh -i "$KEY" "$HOST" "cd $REMOTE_DIR && bash scripts/provision.sh"
 
-echo ">> done. To run a daily cycle on the host:"
+echo ">> done."
+echo ">> the Telegram command bot now runs under systemd (mm-bot.service), restarted with this deploy."
+echo "   check it:  ssh -i $KEY $HOST 'systemctl status mm-bot.service'"
+echo ">> to run a daily cycle on the host:"
 echo "   ssh -i $KEY $HOST 'cd $REMOTE_DIR && ~/.local/bin/uv run python -m trading.run'"
