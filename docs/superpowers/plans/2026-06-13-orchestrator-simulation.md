@@ -700,7 +700,7 @@ Expected: PASS (3 passed).
 
 - [ ] **Step 5: Run the simulation end-to-end (the scheme check)**
 
-Run: `uv run python -m trading.simulate --days 30`
+Run: `uv run python -m trading.orchestrator.simulate --days 30`
 Expected: prints one line per agent with starting capital, ending equity, P&L, and trade
 count — proving the full pipeline (data → briefing → strategy → guardrails → broker →
 ledger → equity) runs end-to-end with no errors.
@@ -741,7 +741,10 @@ Replace the `## Status` section with:
 
 Run the whole scheme on synthetic data (deterministic, free, no API key, no IBKR):
 
-    uv run python -m trading.simulate --days 30
+    uv run python -m trading.orchestrator.simulate --days 30
+
+(Synthetic prices trend upward, so the P&L is a plumbing check, NOT a performance
+result — real profitability is only measurable via forward paper trading with Claude.)
 ```
 
 - [ ] **Step 3: Commit**
