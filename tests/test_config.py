@@ -30,6 +30,24 @@ def test_conservative_disallows_shorts_and_uses_any_veto():
     assert p.veto_rule == "any"
 
 
+def test_each_profile_has_a_mandate():
+    profiles = load_profiles(CONFIG)
+    for name, p in profiles.items():
+        assert p.mandate, f"{name} is missing a mandate"
+    mandates = {p.mandate for p in profiles.values()}
+    assert len(mandates) == 3
+
+
+def test_mandate_defaults_to_empty_for_manual_construction():
+    p = RiskProfile(
+        name="x", budget=1.0, max_position_pct=0.1, min_positions=1,
+        allow_shorts=False, stop_loss_pct=0.1, max_trades_per_day=1,
+        daily_loss_limit_pct=0.1, max_drawdown_pct=0.1,
+        auto_exec_threshold_usd=1.0, auto_exec_threshold_pct=0.1, veto_rule="any",
+    )
+    assert p.mandate == ""
+
+
 def test_invalid_veto_rule_rejected():
     with pytest.raises(ValueError):
         RiskProfile(

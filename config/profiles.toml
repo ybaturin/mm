@@ -13,6 +13,7 @@ max_drawdown_pct = 0.10
 auto_exec_threshold_usd = 500.0
 auto_exec_threshold_pct = 0.25
 veto_rule = "any"
+mandate = "Capital preservation comes first. Trade rarely and only on strong, confirmed signals. Holding cash is a perfectly good position. Avoid concentration; prefer broad, liquid names and tight risk."
 
 [moderate]
 budget = 5000.0
@@ -26,6 +27,7 @@ max_drawdown_pct = 0.15
 auto_exec_threshold_usd = 500.0
 auto_exec_threshold_pct = 0.25
 veto_rule = "majority"
+mandate = "Balanced swing trading over days to weeks. Take reasonable trends and mean-reversions, neither timid nor reckless. Size positions sensibly and cut losers at the stop without hesitation."
 
 [aggressive]
 budget = 5000.0
@@ -39,3 +41,4 @@ max_drawdown_pct = 0.25
 auto_exec_threshold_usd = 500.0
 auto_exec_threshold_pct = 0.25
 veto_rule = "majority"
+mandate = "Hunt momentum and decisive moves. Accept higher concentration and use shorts when the setup is clear. Be opportunistic and act faster than the others — but every position still carries a hard stop."

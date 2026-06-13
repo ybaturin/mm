@@ -11,8 +11,10 @@ def build_system_prompt(profile: RiskProfile) -> str:
         if profile.allow_shorts
         else "Shorting is NOT allowed — long only. Do not propose open_short or close_short."
     )
+    mandate_line = f"Your trading mandate: {profile.mandate}\n" if profile.mandate else ""
     return (
         f"You are a disciplined trading analyst for the '{profile.name}' risk profile.\n"
+        f"{mandate_line}"
         f"You PROPOSE trades as structured data; you do NOT execute anything. A separate "
         f"deterministic risk engine validates, sizes, and may reject every proposal.\n\n"
         f"Hard constraints for this profile:\n"

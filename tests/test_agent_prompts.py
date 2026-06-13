@@ -7,9 +7,22 @@ def make_profile(**o):
     base = dict(name="aggressive", budget=5000.0, max_position_pct=0.40, min_positions=3,
                 allow_shorts=True, stop_loss_pct=0.12, max_trades_per_day=8,
                 daily_loss_limit_pct=0.08, max_drawdown_pct=0.25,
-                auto_exec_threshold_usd=500.0, auto_exec_threshold_pct=0.25, veto_rule="majority")
+                auto_exec_threshold_usd=500.0, auto_exec_threshold_pct=0.25,
+                veto_rule="majority", mandate="")
     base.update(o)
     return RiskProfile(**base)
+
+
+def test_mandate_appears_in_system_prompt():
+    p = make_profile(mandate="Hunt momentum and act faster than the others.")
+    assert "Hunt momentum and act faster than the others." in build_system_prompt(p)
+
+
+def test_different_mandates_produce_different_prompts():
+    a = build_system_prompt(make_profile(name="conservative", mandate="Preserve capital; trade rarely."))
+    b = build_system_prompt(make_profile(name="aggressive", mandate="Hunt momentum; concentrate."))
+    assert a != b
+    assert "Preserve capital" in a and "Hunt momentum" in b
 
 
 def briefing():

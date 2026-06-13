@@ -21,6 +21,7 @@ class RiskProfile:
     auto_exec_threshold_usd: float
     auto_exec_threshold_pct: float
     veto_rule: str
+    mandate: str = ""
 
     def __post_init__(self) -> None:
         if self.veto_rule not in VALID_VETO_RULES:
