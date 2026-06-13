@@ -217,6 +217,9 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    # httpx logs every request URL at INFO — and our URLs embed the bot token.
+    # Keep it at WARNING so the secret never lands in the journal.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     build_bot().run_forever()
 
 
