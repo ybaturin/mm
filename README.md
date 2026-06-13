@@ -10,6 +10,8 @@ See `docs/superpowers/specs/2026-06-13-ibkr-trading-agents-design.md` for the fu
 - Plan 3 of 9: Broker boundary — Protocol, FakeBroker, IBKRBroker (ib-async). ✓
 - Plan 4 of 9: Data Collector — MarketDataSource (yfinance), pure indicators, and the
   `build_briefing()` snapshot fed to the agent. ✓
+- Plan 5 of 9: Agent Core — Claude (`claude-opus-4-8`) turns a briefing into trade
+  proposals via strict structured output. The model proposes only; it executes nothing. ✓
 
 The whole system can run against `FakeBroker` with no live connection. Real paper
 trading uses `IBKRBroker`; verify the connection with:
@@ -21,6 +23,10 @@ trading uses `IBKRBroker`; verify the connection with:
 Tradable universe lives in `config/universe.toml`. Verify live data with:
 
     uv run python scripts/smoke_yfinance.py AAPL
+
+Try a live proposal (needs ANTHROPIC_API_KEY; uses canned prices, no IBKR):
+
+    uv run python scripts/smoke_agent.py
 
 ## Develop
 
