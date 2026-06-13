@@ -21,3 +21,6 @@ venv/
 *.db
 data/
 logs/
+
+# ...but the data source package is source code, not runtime state
+!src/trading/data/
