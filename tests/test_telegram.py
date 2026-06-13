@@ -80,6 +80,18 @@ def test_confirmation_decline_is_honored():
     assert _notifier(client).request_confirmation("buy?") is False
 
 
+def test_resolve_admin_ids_from_env(monkeypatch):
+    from trading.reporting.telegram import resolve_admin_ids
+    monkeypatch.setenv("TELEGRAM_ADMIN_IDS", "111, 222")
+    assert resolve_admin_ids("999") == {111, 222}
+
+
+def test_resolve_admin_ids_falls_back_to_chat_id(monkeypatch):
+    from trading.reporting.telegram import resolve_admin_ids
+    monkeypatch.delenv("TELEGRAM_ADMIN_IDS", raising=False)
+    assert resolve_admin_ids("999") == {999}
+
+
 def test_confirmation_ignores_stale_backlog_callback():
     # A queued approve from BEFORE this request (drained on entry, and not carrying
     # this request's nonce) must never satisfy it. With no fresh press afterwards,

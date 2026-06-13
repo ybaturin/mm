@@ -5,6 +5,18 @@ import secrets
 import time
 
 
+def resolve_admin_ids(chat_id: str | None) -> set[int]:
+    """Telegram user ids allowed to act. From TELEGRAM_ADMIN_IDS (comma-separated)
+    if set, else the configured chat_id (correct for a private 1:1 chat)."""
+    raw = os.environ.get("TELEGRAM_ADMIN_IDS")
+    if raw:
+        return {int(x) for x in raw.split(",") if x.strip()}
+    try:
+        return {int(chat_id)}
+    except (TypeError, ValueError):
+        return set()
+
+
 class TelegramNotifier:
     """Sends messages and asks for confirmations over the Telegram Bot API."""
 
@@ -22,16 +34,7 @@ class TelegramNotifier:
         self.client = client
 
     def _resolve_admin_ids(self) -> set[int]:
-        """Telegram user ids allowed to approve trades. From TELEGRAM_ADMIN_IDS
-        (comma-separated) if set, else the configured chat_id (correct for a private
-        1:1 chat, where the user id equals the chat id)."""
-        raw = os.environ.get("TELEGRAM_ADMIN_IDS")
-        if raw:
-            return {int(x) for x in raw.split(",") if x.strip()}
-        try:
-            return {int(self.chat_id)}
-        except (TypeError, ValueError):
-            return set()
+        return resolve_admin_ids(self.chat_id)
 
     def notify(self, text: str) -> None:
         self.client.post(f"{self.base}/sendMessage",
