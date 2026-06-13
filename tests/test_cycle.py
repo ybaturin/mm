@@ -2,6 +2,7 @@ import math
 
 import pytest
 from trading.broker.fake import FakeBroker
+from trading.broker.types import Action
 from trading.config import RiskProfile
 from trading.data.bars import Bar
 from trading.data.fake_source import FakeMarketDataSource
@@ -62,6 +63,27 @@ def test_run_cycle_opens_position_and_records_everything(repos):
     assert journal.equity_curve("moderate") == [("2026-06-15", pytest.approx(state.equity({"AAPL": last_price})))]
     # account state saved
     assert accounts.get_state("moderate").cash == state.cash
+
+
+def test_run_cycle_places_protective_stop_after_opening(repos):
+    accounts, journal = repos
+    profile = make_profile()
+    broker = FakeBroker(cash=profile.budget)
+    source = FakeMarketDataSource({"AAPL": uptrend_bars()})
+    broker.set_price("AAPL", source.latest_price("AAPL"))
+
+    run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
+              accounts=accounts, journal=journal, strategy=FakeStrategy(),
+              universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z",
+              confirm=lambda p, d: True)
+
+    pos = {p.symbol: p for p in broker.positions()}["AAPL"]
+    assert len(broker.stop_orders) == 1               # the opening long got a hard stop
+    stop = broker.stop_orders[0]
+    assert stop["symbol"] == "AAPL"
+    assert stop["action"] is Action.SELL              # protective stop on a long sells
+    assert stop["quantity"] == pos.quantity           # protects the full filled size
+    assert stop["stop_price"] > 0
 
 
 def test_run_cycle_respects_position_cap(repos):
