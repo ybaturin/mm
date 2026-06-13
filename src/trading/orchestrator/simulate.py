@@ -64,6 +64,8 @@ def run_simulation(
                 agent_id=name, profile=profile, broker=broker, source=source,
                 accounts=accounts, journal=journal, strategy=FakeStrategy(),
                 universe=universe, as_of_date=as_of, ts=f"{as_of}T13:30:00Z",
+                # Offline simulation runs unattended: explicitly auto-approve.
+                confirm=lambda proposal, decision: True,
             )
             results[name].append((as_of, round(state.equity(prices), 2)))
 

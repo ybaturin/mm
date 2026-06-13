@@ -45,7 +45,9 @@ def run_cycle(
     `confirm` decides NEEDS_CONFIRMATION trades (defaults to auto-approve, as in simulation).
     """
     if confirm is None:
-        confirm = lambda proposal, decision: True  # noqa: E731
+        # Fail-safe default: an unconfirmed large trade is NOT executed. Callers that
+        # want unattended auto-approval (e.g. offline simulation) must opt in explicitly.
+        confirm = lambda proposal, decision: False  # noqa: E731
     engine = GuardrailsEngine()
 
     held = [p.symbol for p in broker.positions()]

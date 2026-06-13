@@ -63,7 +63,7 @@ def test_blocking_panel_prevents_execution_and_records_veto(repos):
     run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
               accounts=accounts, journal=journal, strategy=FakeStrategy(),
               universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z",
-              panel=BlockingPanel())
+              confirm=lambda p, d: True, panel=BlockingPanel())
 
     assert broker.positions() == []                 # nothing executed
     assert journal.vetoes_for("moderate")           # veto recorded
@@ -78,19 +78,20 @@ def test_allowing_panel_lets_execution_through(repos):
     run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
               accounts=accounts, journal=journal, strategy=FakeStrategy(),
               universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z",
-              panel=AllowingPanel())
+              confirm=lambda p, d: True, panel=AllowingPanel())
 
     assert broker.positions()                        # executed
     assert journal.vetoes_for("moderate") == []
 
 
-def test_no_panel_behaves_as_before(repos):
+def test_no_panel_executes_when_confirmed(repos):
     accounts, journal = repos
     profile = make_profile()
     broker, source = setup(profile)
 
     run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
               accounts=accounts, journal=journal, strategy=FakeStrategy(),
-              universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
+              universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z",
+              confirm=lambda p, d: True)
 
-    assert broker.positions()                        # panel optional; default unchanged
+    assert broker.positions()                        # panel optional; executes once approved

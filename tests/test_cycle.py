@@ -50,6 +50,7 @@ def test_run_cycle_opens_position_and_records_everything(repos):
         agent_id="moderate", profile=profile, broker=broker, source=source,
         accounts=accounts, journal=journal, strategy=FakeStrategy(),
         universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z",
+        confirm=lambda p, d: True,
     )
 
     # a long position was opened and persisted
@@ -63,6 +64,23 @@ def test_run_cycle_opens_position_and_records_everything(repos):
     assert journal.equity_curve("moderate") == [("2026-06-15", pytest.approx(state.equity({"AAPL": last_price})))]
     # account state saved
     assert accounts.get_state("moderate").cash == state.cash
+
+
+def test_run_cycle_does_not_auto_approve_large_trades_by_default(repos):
+    accounts, journal = repos
+    profile = make_profile()
+    broker = FakeBroker(cash=profile.budget)
+    source = FakeMarketDataSource({"AAPL": uptrend_bars()})
+    broker.set_price("AAPL", source.latest_price("AAPL"))
+
+    # No confirm passed: a NEEDS_CONFIRMATION trade must fail safe (not execute),
+    # never silently auto-approve (review finding #16).
+    run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
+              accounts=accounts, journal=journal, strategy=FakeStrategy(),
+              universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
+
+    assert broker.positions() == []                  # not executed without explicit approval
+    assert journal.decisions_for("moderate")         # but the decision was still recorded
 
 
 def test_run_cycle_places_protective_stop_after_opening(repos):
@@ -95,7 +113,8 @@ def test_run_cycle_respects_position_cap(repos):
 
     run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
               accounts=accounts, journal=journal, strategy=FakeStrategy(),
-              universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
+              universe=["AAPL"], as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z",
+              confirm=lambda p, d: True)
 
     pos = {p.symbol: p for p in broker.positions()}["AAPL"]
     notional = pos.quantity * source.latest_price("AAPL")
