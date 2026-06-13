@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from typing import Callable
 
+from trading.persistence.accounts import AccountRepository
 from trading.persistence.journal import JournalRepository
 
 _LOOKBACK_DAYS = {"day": 1, "week": 7, "month": 30}
@@ -59,3 +61,40 @@ def pnl_report(journal: JournalRepository, agent_ids: list[str], period: str) ->
     p_pnl = p_end - p_start
     p_pct = p_pnl / p_start if p_start else 0.0
     return PnlReport(period, per_agent, p_start, p_end, p_pnl, p_pct)
+
+
+@dataclass(frozen=True)
+class PositionLine:
+    agent_id: str
+    symbol: str
+    quantity: int
+    avg_price: float
+    current_price: float
+    unrealized_pnl: float
+
+
+@dataclass(frozen=True)
+class PositionsReport:
+    per_agent: dict[str, list[PositionLine]]
+    portfolio_unrealized: float
+    portfolio_market_value: float
+
+
+def positions_report(accounts: AccountRepository, agent_ids: list[str],
+                     price_fn: Callable[[str], float]) -> PositionsReport:
+    per_agent: dict[str, list[PositionLine]] = {}
+    port_unreal = 0.0
+    port_mv = 0.0
+    for aid in agent_ids:
+        state = accounts.get_state(aid)
+        lines: list[PositionLine] = []
+        if state is not None:
+            for p in state.positions:
+                price = price_fn(p.symbol)
+                unreal = (price - p.avg_price) * p.quantity
+                lines.append(PositionLine(aid, p.symbol, p.quantity, p.avg_price,
+                                          price, unreal))
+                port_unreal += unreal
+                port_mv += price * p.quantity
+        per_agent[aid] = lines
+    return PositionsReport(per_agent, port_unreal, port_mv)
