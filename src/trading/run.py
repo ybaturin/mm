@@ -35,6 +35,27 @@ from trading.persistence.schema import init_db
 from trading.reporting.notifier import FakeNotifier
 
 
+def _assert_go_live_allowed(profiles, journal, source) -> None:
+    """Block real-money (live IBKR) trading until each agent's forward track record
+    clears the go-live gate: long enough, beats SPY on Sharpe, drawdown within limit.
+    Override knowingly with GO_LIVE_OVERRIDE=1. Paper trading (port 4002) is exempt."""
+    if os.environ.get("GO_LIVE_OVERRIDE") == "1":
+        return
+    from trading.analysis.track_record import evaluate_go_live
+
+    blocked = []
+    for name, profile in profiles.items():
+        curve = [eq for _, eq in journal.equity_curve(name)]
+        spy = [b.close for b in source.history("SPY", days=max(len(curve), 1))]
+        result = evaluate_go_live(curve, spy, profile.max_drawdown_pct)
+        if not result.cleared:
+            blocked.append(f"{name}: " + "; ".join(result.reasons))
+    if blocked:
+        raise SystemExit(
+            "Go-live gate not cleared — refusing to trade real money "
+            "(set GO_LIVE_OVERRIDE=1 to bypass):\n  " + "\n  ".join(blocked))
+
+
 def _broker_for(profile, index: int):
     if os.environ.get("BROKER", "fake") == "ibkr":
         from trading.broker.ibkr import IBKRBroker
@@ -62,9 +83,21 @@ def build_components():
     accounts, journal, freezes = (AccountRepository(conn), JournalRepository(conn),
                                   FreezeStore(conn))
 
+    # Gate real money: live IBKR (port 4001) requires a track record that beats SPY.
+    # Paper (4002) is exempt — that is how the record is built.
+    if (os.environ.get("BROKER", "fake") == "ibkr"
+            and int(os.environ.get("IBKR_PORT", "4002")) == 4001):
+        _assert_go_live_allowed(profiles, journal, source)
+
     brokers = {name: _broker_for(p, i) for i, (name, p) in enumerate(profiles.items())}
-    # FakeBrokers need a fill price; seed from live data.
     for name, broker in brokers.items():
+        # Carry FakeBroker state across runs from the ledger (it is otherwise in-memory),
+        # so reconcile matches and a multi-day track record accumulates.
+        if hasattr(broker, "seed"):
+            prev = accounts.get_state(name)
+            if prev is not None:
+                broker.seed(prev.cash, prev.positions)
+        # FakeBrokers need a fill price; seed from live data.
         if hasattr(broker, "set_price"):
             for s in universe:
                 broker.set_price(s, source.latest_price(s))
@@ -80,15 +113,24 @@ def build_components():
         from trading.validation.panel import ValidationPanel
         panel = ValidationPanel()
 
+    mode_is_real = os.environ.get("BROKER", "fake") == "ibkr"
     if os.environ.get("NOTIFIER", "telegram") == "fake":
         notifier = FakeNotifier()
     else:
         from trading.reporting.telegram import TelegramNotifier
-        notifier = TelegramNotifier()
+        # On a dry-run, banner every message so it's never mistaken for real money.
+        prefix = "" if mode_is_real else "🧪 ТЕСТ — симуляция, деньги НЕ настоящие\n\n"
+        notifier = TelegramNotifier(prefix=prefix)
+
+    # Confirmation policy: ask in Telegram by default — you keep oversight, large trades
+    # wait for your tap. Tune frequency via each profile's auto_exec_threshold_usd (small
+    # trades auto-execute), or silence entirely with CONFIRM=auto.
+    confirm_mode = os.environ.get("CONFIRM", "telegram")
+    confirm = (lambda proposal, decision: True) if confirm_mode == "auto" else None
 
     return dict(profiles=profiles, brokers=brokers, source=source, strategy=strategy,
                 panel=panel, notifier=notifier, accounts=accounts, journal=journal,
-                freezes=freezes, universe=universe,
+                freezes=freezes, universe=universe, confirm=confirm,
                 floor_fraction=float(os.environ.get("FLOOR_FRACTION", "0.8")))
 
 
