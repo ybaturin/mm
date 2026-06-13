@@ -11,7 +11,7 @@ def _now_iso() -> str:
 
 
 def _parse(ts: str) -> datetime:
-    # Принимаем и "...Z", и "...+00:00".
+    # Accept both "...Z" and "...+00:00".
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 

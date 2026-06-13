@@ -71,9 +71,9 @@ CREATE TABLE IF NOT EXISTS freezes (
 );
 
 CREATE TABLE IF NOT EXISTS run_state (
-    scope   TEXT PRIMARY KEY,    -- 'GLOBAL' (один прогон за раз)
-    active  INTEGER NOT NULL,    -- 1 = идёт ежедневный цикл
-    since   TEXT                 -- ISO 8601 wall-clock момент захвата лока
+    scope   TEXT PRIMARY KEY,    -- 'GLOBAL' (one run at a time)
+    active  INTEGER NOT NULL,    -- 1 = a daily cycle is in progress
+    since   TEXT                 -- ISO 8601 wall-clock time the lock was acquired
 );
 """
 

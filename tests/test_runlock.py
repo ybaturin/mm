@@ -27,6 +27,6 @@ def test_release_makes_inactive(lock):
 
 
 def test_stale_lock_is_treated_inactive(lock):
-    # since 20 минут назад при stale_after_s=900 (15 мин) -> считаем неактивным
+    # since 20 minutes ago with stale_after_s=900 (15 min) -> treated as inactive
     lock.acquire(now_iso="2026-06-13T13:00:00Z")
     assert lock.is_active(now_iso="2026-06-13T13:20:01Z") is False
