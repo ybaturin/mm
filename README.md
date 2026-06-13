@@ -1,54 +1,39 @@
 # IBKR Trading Agents
 
-Autonomous, risk-controlled trading agents on Interactive Brokers (paper first).
-See `docs/superpowers/specs/2026-06-13-ibkr-trading-agents-design.md` for the full design.
+Three risk-profile agents (conservative / moderate / aggressive) that analyse the market
+once a day pre-market, propose trades via Claude, filter them through a deterministic
+guardrails engine and an adversarial validation panel, execute on Interactive Brokers, and
+report to you over Telegram. Paper-first; real money only after a 6-month forward track
+record that beats SPY. Full design: `docs/superpowers/specs/2026-06-13-ibkr-trading-agents-design.md`.
 
-## Status
+## Status — all 10 plans complete
 
-- Plan 1 of 10: domain models, risk-profile config, deterministic Guardrails Engine. ✓
-- Plan 2 of 10: SQLite persistence — ledger, decision journal, fills, equity snapshots. ✓
-- Plan 3 of 10: Broker boundary — Protocol, FakeBroker, IBKRBroker (ib-async). ✓
-- Plan 4 of 10: Data Collector — MarketDataSource (yfinance), indicators, briefing. ✓
-- Plan 5 of 10: Agent Core — Claude turns a briefing into trade proposals. ✓
-- Plan 6 of 10: Orchestrator + Simulation — run_cycle wires the whole pipeline; a
-  multi-day simulation proves the scheme end-to-end with no live money. ✓
-- Plan 7 of 10: Validation Panel — role-diverse Claude validators (skeptic / catalyst /
-  devil's advocate) that can veto a proposal after guardrails; subtractive only,
-  per-profile veto rule, every veto logged. Optional step in run_cycle. ✓
-- Plan 8 of 10: Reporter — Telegram digests, fill notifications, alerts, P&L, and
-  inline-button confirmation of large trades (`make_confirm` plugs into run_cycle).
-  Pure formatters + FakeNotifier are tested; live Bot API via a smoke script. ✓
-- Plan 9 of 10: Safety nets — FreezeStore (halt an agent or everything), reconciliation
-  (ledger vs broker, freeze on divergence), and an independent NAV watchdog that flattens
-  all positions and freezes globally on a floor breach. All deterministic, fully tested. ✓
+1. Guardrails engine · 2. Persistence · 3. Broker boundary · 4. Data collector ·
+5. Agent core (Claude) · 6. Orchestrator + simulation · 7. Validation panel ·
+8. Reporter (Telegram) · 9. Watchdog + reconciliation · 10. Daily run + deploy.
 
-Run the whole scheme on synthetic data (deterministic, free, no API key, no IBKR):
-
-    uv run python -m trading.orchestrator.simulate --days 30
-
-Verify Telegram (needs TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
-
-    uv run python scripts/smoke_telegram.py
-
-The whole system can run against `FakeBroker` with no live connection. Real paper
-trading uses `IBKRBroker`; verify the connection with:
-
-    IBKR_PORT=4002 uv run python scripts/smoke_ibkr.py
-
-(requires a running IB Gateway logged into a paper account).
-
-Tradable universe lives in `config/universe.toml`. Verify live data with:
-
-    uv run python scripts/smoke_yfinance.py AAPL
-
-Try a live proposal (needs ANTHROPIC_API_KEY; uses canned prices, no IBKR):
-
-    uv run python scripts/smoke_agent.py
-
-## Develop
+## Run it
 
 ```bash
-uv run pytest        # run the test suite
+make test                                   # unit + integration tests
+make sim                                    # 30-day scheme simulation (free, deterministic)
+
+# Full daily wiring with NO IBKR and NO money — live Claude + Telegram on simulated fills
+# priced from real yfinance data:
+BROKER=fake STRATEGY=claude NOTIFIER=telegram uv run python -m trading.run
+
+# Free, no keys at all:
+BROKER=fake STRATEGY=fake NOTIFIER=fake PANEL=off uv run python -m trading.run
 ```
 
-Risk limits live in `config/profiles.toml` (no code changes needed to tune them).
+## Deploy (Raspberry Pi or VPS)
+
+1. `cp .env.example .env` and fill in secrets.
+2. `docker compose build && docker compose run --rm app` to verify.
+3. Schedule a host cron pre-market, e.g. weekdays 13:00 UTC:
+   `0 13 * * 1-5  cd /path/to/mm && docker compose run --rm app >> run.log 2>&1`
+4. `make backup` before moving hosts — the SQLite DB is your whole track record.
+
+IB Gateway has no ARM build: on a Pi, run it on a separate x86 host (or use the Client
+Portal Web API) and set `IBKR_HOST`/`IBKR_PORT`. Until then, `BROKER=fake` runs the entire
+system end-to-end.
