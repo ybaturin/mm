@@ -49,14 +49,28 @@ class TelegramNotifier:
             offset = upd["update_id"] + 1
 
         keyboard = {"inline_keyboard": [[
-            {"text": "✅ Approve", "callback_data": approve},
-            {"text": "❌ Decline", "callback_data": decline},
+            {"text": "✅ Подтвердить", "callback_data": approve},
+            {"text": "❌ Отклонить", "callback_data": decline},
         ]]}
         sent = self.client.post(
             f"{self.base}/sendMessage",
             json={"chat_id": self.chat_id, "text": text, "reply_markup": keyboard},
         ).json()
         message_id = sent["result"]["message_id"]
+
+        def finish(approved: bool | None, cb_id: str | None) -> bool:
+            # Remove the buttons and stamp the outcome so the message can't be tapped again.
+            verdict = ("✅ Подтверждено" if approved else
+                       "❌ Отклонено" if approved is False else "⌛ Истёк таймаут — отклонено")
+            self.client.post(
+                f"{self.base}/editMessageText",
+                json={"chat_id": self.chat_id, "message_id": message_id,
+                      "text": f"{text}\n\n— {verdict}"},
+            )
+            if cb_id is not None:
+                self.client.post(f"{self.base}/answerCallbackQuery",
+                                 json={"callback_query_id": cb_id, "text": verdict})
+            return bool(approved)
 
         deadline = time.monotonic() + self.confirm_timeout
         while time.monotonic() < deadline:
@@ -74,7 +88,5 @@ class TelegramNotifier:
                 data = cb.get("data")
                 if data not in (approve, decline):
                     continue                          # ignore stale/forged callbacks
-                self.client.post(f"{self.base}/answerCallbackQuery",
-                                 json={"callback_query_id": cb["id"]})
-                return data == approve
-        return False  # timed out → safe default: do not trade
+                return finish(data == approve, cb["id"])
+        return finish(None, None)  # timed out → safe default: do not trade
