@@ -204,10 +204,20 @@ Telegram-бот:
 
 ## 8. Деплой и инфраструктура
 
-- **VPS:** Linux (Ubuntu), ~2 vCPU / 4 GB. Hetzner / DigitalOcean / Vultr. ~$10–20/мес.
-- **IBKR Gateway (headless):** держит сессию с IBKR; агент подключается по локальному
-  сокету. Авто-логин и суточный перезапуск — через IBC (IBController). 2FA для
-  headless-доступа настраивается на этапе внедрения. Paper↔Real — переключение флагом.
+- **Хост:** always-on машина. Подходит Raspberry Pi (ARM) — мало ест, нет входящих
+  портов (Telegram long-polling + исходящие вызовы), restart-safe. Альтернатива — VPS
+  (~$10–20/мес). Разработка и весь симуляционный трек на `FakeBroker` идут на Pi без IBKR.
+- **Связь с брокером — подключаемая (за интерфейсом `Broker`), выбор отложен.** Два
+  варианта реального исполнения:
+  - **IB Gateway + ib-async** — надёжный авто-логин 24/7 через IBC, но Gateway есть
+    только под x86 (на ARM/Pi не идёт; Docker не спасает — это вопрос архитектуры CPU,
+    не зависимостей). Значит Gateway на отдельной x86-коробке/VPS, `app` коннектится по
+    адресу из `.env`.
+  - **IBKR Client Portal Web API (CPAPI)** — REST-шлюз на обычной Java, **запускается на
+    ARM/Pi** → самодостаточный Pi. Цена — периодический ре-логин сессии (~раз в сутки,
+    2FA мешает headless). Отдельная реализация `IBKRWebBroker` за тем же `Broker`.
+  - Поскольку брокер изолирован интерфейсом (план 3), выбор меняет один файл-реализацию,
+    а не систему. Paper↔Real — переключение конфигом.
 - **Упаковка:** docker-compose:
   - `ib-gateway` (IBC + Gateway),
   - `app` (Python: агенты, guardrails, broker adapter, scheduler, reporter, watchdog),
@@ -222,7 +232,8 @@ Telegram-бот:
 ## 9. Технологический стек
 
 - **Язык:** Python.
-- **IBKR:** ib-async (форк ib_insync) + IB Gateway + IBC.
+- **IBKR:** за интерфейсом `Broker` — ib-async + IB Gateway + IBC (x86) **или** Client
+  Portal Web API / REST (ARM-friendly). Выбор отложен.
 - **LLM:** Anthropic Claude API (structured output).
 - **БД:** Postgres (или SQLite на старте).
 - **Бот:** Telegram Bot API.
