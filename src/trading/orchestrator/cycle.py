@@ -75,6 +75,7 @@ def run_cycle(
         if decision.outcome is Outcome.REJECTED:
             continue
         if decision.outcome is Outcome.NEEDS_CONFIRMATION and not confirm(proposal, decision):
+            journal.set_decision_outcome(decision_id, "declined")   # you rejected it in Telegram
             continue
 
         if panel is not None:

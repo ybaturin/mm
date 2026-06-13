@@ -40,7 +40,7 @@ def test_format_digest_summarizes_counts():
 
 def test_format_digest_handles_quiet_day():
     msg = format_digest("moderate", "2026-06-15", executed=[], rejected=0, vetoed=0)
-    assert "no trades" in msg.lower() or "nothing" in msg.lower()
+    assert "сделок нет" in msg.lower()
 
 
 def test_format_alert_is_marked():

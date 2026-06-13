@@ -26,10 +26,11 @@ def _summary(journal: JournalRepository, agent_id: str, date: str):
     fills = [r for r in journal.fills_for(agent_id) if r["ts"].startswith(date)]
     executed = [f'{intent_label(r["intent"])} {r["quantity"]} {r["symbol"]} @ {r["price"]:g}'
                 for r in fills]
-    rejected = sum(1 for r in journal.decisions_for(agent_id)
-                   if r["ts"].startswith(date) and r["outcome"] == "rejected")
+    decisions_today = [r for r in journal.decisions_for(agent_id) if r["ts"].startswith(date)]
+    rejected = sum(1 for r in decisions_today if r["outcome"] == "rejected")
+    declined = sum(1 for r in decisions_today if r["outcome"] == "declined")
     vetoed = sum(1 for r in journal.vetoes_for(agent_id) if r["ts"].startswith(date))
-    return executed, rejected, vetoed
+    return executed, rejected, vetoed, declined
 
 
 def run_daily(
@@ -110,8 +111,8 @@ def run_daily(
                     "watchdog",
                     f"{name}: NAV {result.nav:.0f} < floor {result.floor:.0f} — flattened & frozen"))
 
-            executed, rejected, vetoed = _summary(journal, name, as_of_date)
-            notifier.notify(format_digest(name, as_of_date, executed, rejected, vetoed))
+            executed, rejected, vetoed, declined = _summary(journal, name, as_of_date)
+            notifier.notify(format_digest(name, as_of_date, executed, rejected, vetoed, declined))
 
             # Per-agent P&L (budget -> current equity), and accumulate the portfolio total.
             final_equity = post.equity(prices)

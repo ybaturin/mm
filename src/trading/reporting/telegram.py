@@ -9,11 +9,12 @@ class TelegramNotifier:
     """Sends messages and asks for confirmations over the Telegram Bot API."""
 
     def __init__(self, token: str | None = None, chat_id: str | None = None,
-                 client=None, confirm_timeout: float = 600.0) -> None:
+                 client=None, confirm_timeout: float = 600.0, prefix: str = "") -> None:
         self.token = token or os.environ["TELEGRAM_BOT_TOKEN"]
         self.chat_id = chat_id or os.environ["TELEGRAM_CHAT_ID"]
         self.base = f"https://api.telegram.org/bot{self.token}"
         self.confirm_timeout = confirm_timeout
+        self.prefix = prefix                 # banner prepended to every message (e.g. test mode)
         self.admin_ids = self._resolve_admin_ids()
         if client is None:
             import httpx
@@ -34,9 +35,10 @@ class TelegramNotifier:
 
     def notify(self, text: str) -> None:
         self.client.post(f"{self.base}/sendMessage",
-                         json={"chat_id": self.chat_id, "text": text})
+                         json={"chat_id": self.chat_id, "text": f"{self.prefix}{text}"})
 
     def request_confirmation(self, text: str) -> bool:
+        text = f"{self.prefix}{text}"
         # Bind this request to a fresh nonce so a stale/replayed callback can't satisfy it.
         nonce = secrets.token_hex(8)
         approve, decline = f"approve:{nonce}", f"decline:{nonce}"

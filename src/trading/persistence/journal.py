@@ -40,6 +40,12 @@ class JournalRepository:
             (agent_id,),
         ).fetchall()
 
+    def set_decision_outcome(self, decision_id: int, outcome: str) -> None:
+        """Override a recorded decision's outcome (e.g. 'declined' after a manual reject)."""
+        self.conn.execute(
+            "UPDATE decisions SET outcome = ? WHERE id = ?", (outcome, decision_id))
+        self.conn.commit()
+
     def reasons_for_latest(self, agent_id: str) -> list[str]:
         row = self.conn.execute(
             "SELECT reasons FROM decisions WHERE agent_id = ? ORDER BY id DESC LIMIT 1",

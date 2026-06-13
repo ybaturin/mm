@@ -28,6 +28,7 @@ def build_system_prompt(profile: RiskProfile) -> str:
         f"- At most {profile.max_trades_per_day} trades. Propose nothing if nothing is "
         f"compelling — an empty list is a valid, often correct answer.\n"
         f"- Every proposal needs a concise, concrete rationale.\n"
+        f"- Write the rationale field in Russian (the owner reads Russian).\n"
     )
 
 

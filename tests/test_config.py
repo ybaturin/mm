@@ -6,15 +6,15 @@ from trading.config import RiskProfile, load_profiles
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "profiles.toml"
 
 
-def test_loads_three_profiles():
+def test_loads_two_profiles():
     profiles = load_profiles(CONFIG)
-    assert set(profiles) == {"conservative", "moderate", "aggressive"}
+    assert set(profiles) == {"moderate", "aggressive"}
 
 
-def test_aggressive_values_match_spec():
+def test_aggressive_values_match_config():
     p = load_profiles(CONFIG)["aggressive"]
     assert p.name == "aggressive"
-    assert p.budget == 5000.0
+    assert p.budget == 2400.0
     assert p.max_position_pct == 0.40
     assert p.allow_shorts is True
     assert p.stop_loss_pct == 0.12
@@ -24,10 +24,10 @@ def test_aggressive_values_match_spec():
     assert p.veto_rule == "majority"
 
 
-def test_conservative_disallows_shorts_and_uses_any_veto():
-    p = load_profiles(CONFIG)["conservative"]
+def test_moderate_disallows_shorts():
+    p = load_profiles(CONFIG)["moderate"]
     assert p.allow_shorts is False
-    assert p.veto_rule == "any"
+    assert p.budget == 2400.0
 
 
 def test_each_profile_has_a_mandate():
@@ -35,7 +35,7 @@ def test_each_profile_has_a_mandate():
     for name, p in profiles.items():
         assert p.mandate, f"{name} is missing a mandate"
     mandates = {p.mandate for p in profiles.values()}
-    assert len(mandates) == 3
+    assert len(mandates) == len(profiles)
 
 
 def test_mandate_defaults_to_empty_for_manual_construction():

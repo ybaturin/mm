@@ -1,22 +1,9 @@
 # config/profiles.toml — risk limits per agent (spec §3, §6)
-# All monetary values in USD. Percentages as fractions (0.15 = 15%).
-
-[conservative]
-budget = 5000.0
-max_position_pct = 0.15
-min_positions = 8
-allow_shorts = false
-stop_loss_pct = 0.08
-max_trades_per_day = 2
-daily_loss_limit_pct = 0.03
-max_drawdown_pct = 0.10
-auto_exec_threshold_usd = 500.0
-auto_exec_threshold_pct = 0.25
-veto_rule = "any"
-mandate = "Capital preservation comes first. Trade rarely and only on strong, confirmed signals. Holding cash is a perfectly good position. Avoid concentration; prefer broad, liquid names and tight risk."
+# All monetary values in USD. Percentages as fractions (0.25 = 25%).
+# Two agents sized to a ~$4.8k account: moderate + aggressive, $2.4k each.
 
 [moderate]
-budget = 5000.0
+budget = 2400.0
 max_position_pct = 0.25
 min_positions = 5
 allow_shorts = false
@@ -30,7 +17,7 @@ veto_rule = "majority"
 mandate = "Balanced swing trading over days to weeks. Take reasonable trends and mean-reversions, neither timid nor reckless. Size positions sensibly and cut losers at the stop without hesitation."
 
 [aggressive]
-budget = 5000.0
+budget = 2400.0
 max_position_pct = 0.40
 min_positions = 3
 allow_shorts = true
