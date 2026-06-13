@@ -110,3 +110,23 @@ def test_ignores_non_admin(bot):
     b, client = bot
     b.handle_update(_message("/positions", sender=99999))
     assert client.sent == []
+
+
+def test_poll_once_skips_when_run_lock_active(bot):
+    b, client = bot
+    b.run_lock.acquire(now_iso="2026-06-13T13:30:00Z")
+    polled = b.poll_once(offset=None, now_iso="2026-06-13T13:30:10Z")
+    assert polled is None                  # did not poll getUpdates
+    assert client.sent == []
+
+
+def test_poll_once_processes_updates_when_unlocked(bot):
+    b, client = bot
+
+    def fake_get(url, params=None):
+        return FakeClient._Resp({"result": [_message("/status")]})
+
+    b.client.get = fake_get
+    new_offset = b.poll_once(offset=None, now_iso="2026-06-13T13:30:10Z")
+    assert client.sent                     # /status handled
+    assert new_offset == 2                 # update_id (1) + 1

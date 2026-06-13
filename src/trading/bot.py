@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from trading.reporting.format import (
     format_pnl_report, format_positions, format_status, format_trades,
 )
@@ -101,3 +103,28 @@ class Bot:
                 self._send(self._pnl_text(arg))
             else:
                 self._send("Выбери период:", reply_markup=_PNL_BUTTONS)
+
+    # --- polling loop ---
+    def poll_once(self, offset, now_iso=None):
+        """One polling step. Returns the next offset, or None if it deferred to the
+        running daily cycle (lock active)."""
+        if self.run_lock.is_active(now_iso=now_iso):
+            return None
+        params = {"timeout": 25}
+        if offset is not None:
+            params["offset"] = offset
+        updates = self.client.get(f"{self.base}/getUpdates", params=params).json()
+        for upd in updates.get("result", []):
+            offset = upd["update_id"] + 1
+            self.handle_update(upd)
+        return offset
+
+    def run_forever(self) -> None:
+        self.set_my_commands()
+        offset = None
+        while True:
+            next_offset = self.poll_once(offset)
+            if next_offset is None:
+                time.sleep(3)        # daily cycle owns Telegram right now
+                continue
+            offset = next_offset
