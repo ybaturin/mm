@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 
 from trading.reporting.format import (
@@ -8,6 +9,8 @@ from trading.reporting.format import (
 from trading.reporting.queries import (
     pnl_report, positions_report, status_report, trades_report,
 )
+
+log = logging.getLogger("trading.bot")
 
 _PERIODS = ("day", "week", "month", "all")
 _PNL_BUTTONS = {"inline_keyboard": [[
@@ -62,8 +65,10 @@ class Bot:
         self.client.post(f"{self.base}/answerCallbackQuery",
                          json={"callback_query_id": cb_id})
 
-    def set_my_commands(self) -> None:
-        self.client.post(f"{self.base}/setMyCommands", json={"commands": COMMANDS})
+    def set_my_commands(self) -> bool:
+        resp = self.client.post(f"{self.base}/setMyCommands",
+                                json={"commands": COMMANDS}).json()
+        return bool(resp.get("ok", False))
 
     # --- report builders ---
     def _pnl_text(self, period: str) -> str:
@@ -73,9 +78,12 @@ class Bot:
     def handle_update(self, upd: dict) -> None:
         cb = upd.get("callback_query")
         if cb is not None:
-            if cb.get("from", {}).get("id") not in self.admin_ids:
+            sender = cb.get("from", {}).get("id")
+            if sender not in self.admin_ids:
+                log.info("ignoring callback from non-admin %s", sender)
                 return
             data = cb.get("data", "")
+            log.info("callback %r from %s", data, sender)
             if data.startswith("pnl:"):
                 period = data.split(":", 1)[1]
                 if period in _PERIODS:
@@ -86,13 +94,16 @@ class Bot:
         msg = upd.get("message")
         if not msg:
             return
-        if msg.get("from", {}).get("id") not in self.admin_ids:
+        sender = msg.get("from", {}).get("id")
+        if sender not in self.admin_ids:
+            log.info("ignoring message from non-admin %s", sender)
             return
         parts = (msg.get("text") or "").strip().split()
         if not parts:
             return
         cmd = parts[0].split("@")[0].lstrip("/")   # tolerate /cmd@botname
         arg = parts[1] if len(parts) > 1 else None
+        log.info("command /%s arg=%r from %s", cmd, arg, sender)
 
         if cmd in ("start", "help"):
             self._send(WELCOME)
@@ -115,21 +126,40 @@ class Bot:
         """One polling step. Returns the next offset, or None if it deferred to the
         running daily cycle (lock active)."""
         if self.run_lock.is_active(now_iso=now_iso):
+            log.debug("daily run holds the lock — pausing poll")
             return None
         params = {"timeout": 25}
         if offset is not None:
             params["offset"] = offset
-        updates = self.client.get(f"{self.base}/getUpdates", params=params).json()
-        for upd in updates.get("result", []):
+        resp = self.client.get(f"{self.base}/getUpdates", params=params).json()
+        if not resp.get("ok", True):
+            # Most often 409 Conflict: another process is also calling getUpdates
+            # (e.g. a daily run waiting on a confirmation). Surface it, don't crash.
+            log.warning("getUpdates not ok: %s", resp)
+            return offset
+        updates = resp.get("result", [])
+        if updates:
+            log.info("received %d update(s)", len(updates))
+        for upd in updates:
             offset = upd["update_id"] + 1
-            self.handle_update(upd)
+            try:
+                self.handle_update(upd)
+            except Exception:  # noqa: BLE001 — one bad update must not kill the loop
+                log.exception("handle_update failed for update_id=%s",
+                              upd.get("update_id"))
         return offset
 
     def run_forever(self) -> None:
-        self.set_my_commands()
+        log.info("bot starting; registering command menu")
+        log.info("setMyCommands ok=%s", self.set_my_commands())
         offset = None
         while True:
-            next_offset = self.poll_once(offset)
+            try:
+                next_offset = self.poll_once(offset)
+            except Exception:  # noqa: BLE001 — keep the daemon alive across transient errors
+                log.exception("poll cycle failed; retrying in 3s")
+                time.sleep(3)
+                continue
             if next_offset is None:
                 time.sleep(3)        # daily cycle owns Telegram right now
                 continue
@@ -183,6 +213,10 @@ def build_bot():
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     build_bot().run_forever()
 
 
