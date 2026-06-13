@@ -5,6 +5,7 @@ description = "IBKR trading agents — guardrails core"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.109.1",
+    "httpx>=0.28.1",
     "ib-async>=2.1.0",
     "yfinance>=1.4.1",
 ]

@@ -825,6 +825,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "httpx" },
     { name = "ib-async" },
     { name = "yfinance" },
 ]
@@ -837,6 +838,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anthropic", specifier = ">=0.109.1" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "ib-async", specifier = ">=2.1.0" },
     { name = "yfinance", specifier = ">=1.4.1" },
 ]
