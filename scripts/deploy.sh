@@ -27,6 +27,12 @@ rsync -az --delete -e "ssh -i $KEY" \
   --exclude '.claude' --exclude '.env' --exclude '*.log' \
   ./ "$HOST:$REMOTE_DIR/"
 
+echo ">> checking for an in-flight daily run on $HOST"
+if ssh -i "$KEY" "$HOST" 'systemctl is-active --quiet mm-daily.service' 2>/dev/null; then
+  echo "!! mm-daily.service is running — leaving it untouched (it may be awaiting your Telegram"
+  echo "   confirmation). The command bot is still restarted; run_lock keeps them from colliding."
+fi
+
 echo ">> provisioning on $HOST"
 ssh -i "$KEY" "$HOST" "cd $REMOTE_DIR && bash scripts/provision.sh"
 
