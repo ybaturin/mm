@@ -26,7 +26,12 @@ def test_format_confirmation_has_agent_trade_notional_and_reason():
 def test_format_fill_reads_naturally():
     fill = Fill(symbol="AAPL", action=Action.BUY, quantity=3, price=101.5)
     msg = format_fill("moderate", fill)
-    assert "moderate" in msg and "AAPL" in msg and "3" in msg and "101.5" in msg
+    assert "moderate" in msg
+    assert "AAPL" in msg
+    assert "Покупка" in msg
+    assert "3" in msg
+    assert "101.50" in msg
+    assert "исполнена" in msg.lower()
 
 
 def test_format_digest_summarizes_counts():

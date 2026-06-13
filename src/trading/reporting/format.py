@@ -20,12 +20,12 @@ def intent_label(code: str) -> str:
 
 def format_confirmation(proposal: TradeProposal, decision: GuardrailDecision) -> str:
     notional = decision.quantity * proposal.reference_price
-    stop = "—" if proposal.stop_loss_price is None else f"{proposal.stop_loss_price:g}"
+    stop = "—" if proposal.stop_loss_price is None else f"${proposal.stop_loss_price:,.2f}"
     intent = _INTENT_RU.get(proposal.intent.value, proposal.intent.value)
     return (
-        f"Подтвердить сделку? [{proposal.agent_id}]\n"
-        f"{intent}: {decision.quantity} {proposal.symbol} "
-        f"@ ~{proposal.reference_price:g}  (≈${notional:,.0f})\n"
+        f"❓ Подтвердить сделку? · {proposal.agent_id}\n"
+        f"{intent}: {decision.quantity} × {proposal.symbol} "
+        f"@ ~${proposal.reference_price:,.2f}  (≈ ${notional:,.0f})\n"
         f"стоп: {stop}\n"
         f"основание: {proposal.rationale}"
     )
@@ -33,8 +33,10 @@ def format_confirmation(proposal: TradeProposal, decision: GuardrailDecision) ->
 
 def format_fill(agent_id: str, fill: Fill) -> str:
     action = _ACTION_RU.get(fill.action.value, fill.action.value)
-    return (f"[{agent_id}] {action}: {fill.quantity} {fill.symbol} "
-            f"@ {fill.price:g}")
+    notional = fill.quantity * fill.price
+    return (f"✅ Сделка исполнена · {agent_id}\n"
+            f"{action} {fill.quantity} × {fill.symbol} @ ${fill.price:,.2f}  "
+            f"(≈ ${notional:,.0f})")
 
 
 def format_digest(agent_id: str, date: str, executed: list[str],
