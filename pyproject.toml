@@ -1,0 +1,20 @@
+[project]
+name = "trading"
+version = "0.1.0"
+description = "IBKR trading agents — guardrails core"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trading"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
