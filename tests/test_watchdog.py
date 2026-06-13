@@ -49,3 +49,12 @@ def test_flatten_buys_back_a_short():
     b.place_market_order("TSLA", Action.SELL, 5)   # open short
     flatten(b, {"TSLA": 200.0})
     assert b.positions() == []
+
+
+def test_flatten_cancels_resting_stop_orders():
+    b = funded_broker()
+    b.place_stop_order("AAPL", Action.SELL, 20, 90.0)   # protective stop sitting at broker
+    assert b.stop_orders
+    flatten(b, {"AAPL": 90.0})
+    assert b.positions() == []
+    assert b.stop_orders == []                          # stop cancelled, won't fire post-flatten

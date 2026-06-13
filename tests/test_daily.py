@@ -248,6 +248,30 @@ def test_run_daily_isolates_agent_failure_and_alerts(env):
     assert any("moderate" in m for m in notifier.messages)
 
 
+def test_run_daily_global_fuse_halts_everyone_on_portfolio_breach(env):
+    accounts, journal, freezes = env
+    profiles = {"healthy": profile("healthy"), "loser": profile("loser")}
+    universe = ["AAPL"]
+    source = FakeMarketDataSource({"AAPL": [Bar("2026-06-15", 40.0, 40.0, 40.0, 40.0, 1000)]})
+
+    healthy = FakeBroker(cash=4000.0)                   # NAV 4000, above its own floor
+    healthy.set_price("AAPL", 40.0)
+    loser = FakeBroker(cash=5000.0)
+    loser.set_price("AAPL", 100.0)
+    loser.place_market_order("AAPL", Action.BUY, 20)    # cash 3000, 20 sh
+    loser.set_price("AAPL", 40.0)                        # NAV 3800
+    brokers = {"healthy": healthy, "loser": loser}
+    notifier = FakeNotifier()
+
+    run_daily(profiles=profiles, brokers=brokers, source=source, strategy=NoopStrategy(),
+              panel=AllowingPanel(), notifier=notifier, accounts=accounts, journal=journal,
+              freezes=freezes, universe=universe, as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
+
+    # combined NAV 4000 + 3800 = 7800 < 0.8 * 10000 = 8000 -> GLOBAL halt for everyone
+    assert freezes.is_frozen(GLOBAL) is True
+    assert any("global" in m.lower() for m in notifier.messages)
+
+
 def test_run_daily_freezes_on_reconciliation_mismatch(env):
     accounts, journal, freezes = env
     profiles = {"moderate": profile("moderate")}

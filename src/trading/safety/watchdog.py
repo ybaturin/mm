@@ -32,7 +32,9 @@ class Watchdog:
 
 
 def flatten(broker: Broker, prices: dict[str, float]) -> list[Fill]:
-    """Close every open position with market orders. Uses only the Broker Protocol."""
+    """Close every open position with market orders, after cancelling resting orders
+    (e.g. protective stops) so they can't fire against the now-flat account."""
+    broker.cancel_all()
     fills: list[Fill] = []
     for p in list(broker.positions()):
         action = Action.SELL if p.quantity > 0 else Action.BUY

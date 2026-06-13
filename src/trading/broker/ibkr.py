@@ -93,3 +93,7 @@ class IBKRBroker:
         self.ib.qualifyContracts(contract)
         trade = self.ib.placeOrder(contract, StopOrder(action.value, quantity, stop_price))
         return str(trade.order.orderId)
+
+    def cancel_all(self) -> None:
+        """Cancel every resting order (e.g. protective stops) for this account."""
+        self.ib.reqGlobalCancel()

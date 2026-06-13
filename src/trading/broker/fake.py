@@ -32,6 +32,11 @@ class FakeBroker:
     def set_price(self, symbol: str, price: float) -> None:
         self._prices[symbol] = price
 
+    def seed(self, cash: float, positions: list[Position]) -> None:
+        """Load a known cash + positions snapshot (e.g. from the ledger across runs)."""
+        self._cash = cash
+        self._positions = {p.symbol: p for p in positions}
+
     # --- account ---
     def cash(self) -> float:
         return self._cash
@@ -62,3 +67,6 @@ class FakeBroker:
              "quantity": quantity, "stop_price": stop_price}
         )
         return oid
+
+    def cancel_all(self) -> None:
+        self.stop_orders.clear()

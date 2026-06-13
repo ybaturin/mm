@@ -12,7 +12,7 @@ from trading.persistence.journal import JournalRepository
 from trading.reporting.format import format_alert, format_digest, format_pnl, intent_label
 from trading.reporting.notifier import Notifier, make_confirm
 from trading.safety.reconcile import reconcile
-from trading.safety.watchdog import Watchdog, flatten
+from trading.safety.watchdog import Watchdog, flatten, nav
 
 
 def _prices_for(source: MarketDataSource, symbols,
@@ -127,3 +127,21 @@ def run_daily(
     # Portfolio-wide P&L across the agents that completed today.
     if pnl_start_total > 0:
         notifier.notify(format_pnl("ИТОГО", pnl_start_total, pnl_end_total))
+
+    # Global NAV fuse: if the whole portfolio breaches the floor, halt EVERYONE
+    # (a single GLOBAL freeze that skips all agents on the next run), pending review.
+    if not freezes.is_frozen(GLOBAL):
+        try:
+            total_budget = sum(p.budget for p in profiles.values())
+            held = {p.symbol for b in brokers.values() for p in b.positions()}
+            gprices = _prices_for(source, set(universe) | held, as_of_date=as_of_date)
+            total_nav = sum(nav(b, gprices) for b in brokers.values())
+            gfloor = total_budget * floor_fraction
+            if total_nav < gfloor:
+                freezes.freeze(
+                    GLOBAL, f"portfolio NAV {total_nav:.0f} < floor {gfloor:.0f}", ts)
+                notifier.notify(format_alert(
+                    "watchdog",
+                    f"GLOBAL: portfolio NAV {total_nav:.0f} < floor {gfloor:.0f} — all halted"))
+        except Exception as exc:  # noqa: BLE001
+            notifier.notify(format_alert("error", f"global NAV fuse failed — {exc}"))
