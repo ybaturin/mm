@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import Callable
 
 from trading.persistence.accounts import AccountRepository
+from trading.persistence.freezes import FreezeStore
 from trading.persistence.journal import JournalRepository
 
 _LOOKBACK_DAYS = {"day": 1, "week": 7, "month": 30}
@@ -98,3 +99,60 @@ def positions_report(accounts: AccountRepository, agent_ids: list[str],
                 port_mv += price * p.quantity
         per_agent[aid] = lines
     return PositionsReport(per_agent, port_unreal, port_mv)
+
+
+@dataclass(frozen=True)
+class StatusReport:
+    portfolio_equity: float
+    today_pnl: float
+    today_pct: float
+    open_positions_count: int
+    freezes: list[tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class TradeLine:
+    ts: str
+    agent_id: str
+    intent: str
+    symbol: str
+    quantity: int
+    price: float
+
+
+@dataclass(frozen=True)
+class TradesReport:
+    rows: list[TradeLine]
+
+
+def status_report(accounts: AccountRepository, journal: JournalRepository,
+                  freezes: FreezeStore, agent_ids: list[str],
+                  price_fn: Callable[[str], float]) -> StatusReport:
+    total_equity = 0.0
+    today_pnl = 0.0
+    open_count = 0
+    for aid in agent_ids:
+        state = accounts.get_state(aid)
+        if state is None:
+            continue
+        prices = {p.symbol: price_fn(p.symbol) for p in state.positions}
+        total_equity += state.equity(prices)
+        open_count += len(state.positions)
+        curve = journal.equity_curve(aid)
+        if len(curve) >= 2:
+            today_pnl += curve[-1][1] - curve[-2][1]
+    base = total_equity - today_pnl
+    today_pct = today_pnl / base if base else 0.0
+    frozen = [(s, freezes.reason(s) or "") for s in freezes.frozen_scopes()]
+    return StatusReport(total_equity, today_pnl, today_pct, open_count, frozen)
+
+
+def trades_report(journal: JournalRepository, agent_ids: list[str],
+                  limit: int = 10) -> TradesReport:
+    rows = []
+    for aid in agent_ids:
+        rows.extend(journal.fills_for(aid))
+    rows.sort(key=lambda r: (r["ts"], r["id"]), reverse=True)
+    lines = [TradeLine(r["ts"], r["agent_id"], r["intent"], r["symbol"],
+                       r["quantity"], r["price"]) for r in rows[:limit]]
+    return TradesReport(lines)

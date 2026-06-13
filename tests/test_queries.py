@@ -1,10 +1,13 @@
 import pytest
-from trading.domain import AgentState, Position
+from trading.domain import AgentState, Intent, Position
 from trading.persistence.accounts import AccountRepository
 from trading.persistence.db import connect
+from trading.persistence.freezes import FreezeStore
 from trading.persistence.journal import JournalRepository
 from trading.persistence.schema import init_db
-from trading.reporting.queries import pnl_report, positions_report
+from trading.reporting.queries import (
+    pnl_report, positions_report, status_report, trades_report,
+)
 
 
 @pytest.fixture
@@ -84,3 +87,33 @@ def test_positions_report_empty_agent(accounts):
     rep = positions_report(accounts, ["flat"], lambda s: 1.0)
     assert rep.per_agent["flat"] == []
     assert rep.portfolio_unrealized == 0.0
+
+
+# --- status_report / trades_report ---
+
+def test_status_report_aggregates(tmp_path):
+    conn = connect(str(tmp_path / "s.db"))
+    init_db(conn)
+    acc = AccountRepository(conn)
+    jr = JournalRepository(conn)
+    fr = FreezeStore(conn)
+    acc.save_state(AgentState("a", cash=1000.0, positions=[Position("AAPL", 10, 100.0)]))
+    jr.record_equity_snapshot("a", "2026-06-12", 1900.0)
+    jr.record_equity_snapshot("a", "2026-06-13", 2000.0)   # +100 today
+    fr.freeze("a", "manual hold", "2026-06-13T13:00:00Z")
+    rep = status_report(acc, jr, fr, ["a"], lambda s: 100.0)
+    assert rep.portfolio_equity == pytest.approx(2000.0)   # 1000 cash + 10*100
+    assert rep.today_pnl == pytest.approx(100.0)
+    assert rep.open_positions_count == 1
+    assert rep.freezes == [("a", "manual hold")]
+
+
+def test_trades_report_sorts_desc_and_limits(tmp_path):
+    conn = connect(str(tmp_path / "tr.db"))
+    init_db(conn)
+    jr = JournalRepository(conn)
+    jr.record_fill("2026-06-11T13:30:00Z", "a", "AAPL", Intent.OPEN_LONG, 5, 100.0, None)
+    jr.record_fill("2026-06-13T13:30:00Z", "b", "TSLA", Intent.OPEN_SHORT, 3, 250.0, None)
+    jr.record_fill("2026-06-12T13:30:00Z", "a", "MSFT", Intent.OPEN_LONG, 2, 400.0, None)
+    rep = trades_report(jr, ["a", "b"], limit=2)
+    assert [r.symbol for r in rep.rows] == ["TSLA", "MSFT"]   # most recent first
