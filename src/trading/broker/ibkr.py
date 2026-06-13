@@ -44,7 +44,8 @@ class IBKRBroker:
     """
 
     def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
-                 client_id: int = DEFAULT_CLIENT_ID, ib=None) -> None:
+                 client_id: int = DEFAULT_CLIENT_ID, ib=None,
+                 order_timeout: float = 60.0) -> None:
         if ib is None:
             from ib_async import IB
             ib = IB()
@@ -52,6 +53,7 @@ class IBKRBroker:
         self.host = host
         self.port = port
         self.client_id = client_id
+        self.order_timeout = order_timeout
 
     def connect(self) -> None:
         self.ib.connect(self.host, self.port, clientId=self.client_id)
@@ -69,11 +71,18 @@ class IBKRBroker:
         return [position_from_ib(p) for p in self.ib.positions()]
 
     def place_market_order(self, symbol: str, action: Action, quantity: int) -> Fill:
+        import time
+
         from ib_async import MarketOrder, Stock
         contract = Stock(symbol, "SMART", "USD")
         self.ib.qualifyContracts(contract)
         trade = self.ib.placeOrder(contract, MarketOrder(action.value, quantity))
+        # Bounded wait: never block the whole daily run forever on a stalled order.
+        deadline = time.monotonic() + self.order_timeout
         while not trade.isDone():
+            if time.monotonic() >= deadline:
+                raise BrokerError(
+                    f"Order for {symbol} not done within {self.order_timeout}s")
             self.ib.waitOnUpdate(timeout=1)
         return fill_from_trade(trade, symbol, action)
 

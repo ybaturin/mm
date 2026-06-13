@@ -72,3 +72,20 @@ def test_ibkr_broker_reads_cash_via_injected_ib():
         ]
     )
     assert IBKRBroker(ib=fake_ib).cash() == pytest.approx(4200.0)
+
+
+def test_place_market_order_times_out_when_never_filled():
+    class _NeverDone:
+        order = SimpleNamespace(orderId=7)
+
+        def isDone(self):
+            return False
+
+    fake_ib = SimpleNamespace(
+        qualifyContracts=lambda c: None,
+        placeOrder=lambda c, o: _NeverDone(),
+        waitOnUpdate=lambda timeout=1: None,
+    )
+    broker = IBKRBroker(ib=fake_ib, order_timeout=0.0)
+    with pytest.raises(BrokerError):                 # must not hang forever
+        broker.place_market_order("AAPL", Action.BUY, 1)
