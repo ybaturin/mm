@@ -1,0 +1,5 @@
+# config/universe.toml — tradable whitelist (liquid US equities/ETFs), spec §3
+symbols = [
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA",
+    "SPY", "QQQ", "IWM", "DIA",
+]
