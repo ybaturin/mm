@@ -1,0 +1,17 @@
+# Dockerfile — runs on arm64 (Raspberry Pi) and amd64 alike
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+COPY src/ ./src/
+COPY config/ ./config/
+
+ENV DB_PATH=/data/trading.db
+VOLUME ["/data"]
+
+# One-shot daily run; the scheduler (cron/compose) invokes this.
+CMD ["uv", "run", "python", "-m", "trading.run"]

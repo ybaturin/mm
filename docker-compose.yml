@@ -1,0 +1,15 @@
+# docker-compose.yml
+# `app` + `db volume`. IB Gateway is NOT here: it has no ARM build, so on a Pi run it on a
+# separate x86 host (or use the Client Portal Web API) and point IBKR_HOST/PORT at it.
+services:
+  app:
+    build: .
+    env_file: .env
+    volumes:
+      - trading-data:/data
+    # Run once and exit; a host cron triggers it pre-market (see Makefile / README).
+    # For an always-on container instead, replace with a scheduler entrypoint.
+    restart: "no"
+
+volumes:
+  trading-data:
