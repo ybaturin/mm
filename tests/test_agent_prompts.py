@@ -107,3 +107,15 @@ def test_system_prompt_instructs_learning_and_news_discipline():
     p = build_system_prompt(make_profile())
     assert "track record" in p.lower() or "past trade" in p.lower()
     assert "invent" in p.lower() or "not listed" in p.lower()
+
+
+def test_prompt_demands_target_and_horizon():
+    p = build_system_prompt(make_profile())
+    assert "target_price" in p
+    assert "horizon_days" in p
+
+
+def test_prompt_forbids_indicator_jargon_in_rationale():
+    p = build_system_prompt(make_profile()).lower()
+    assert "rsi" in p          # the instruction references jargon to avoid
+    assert "without" in p
