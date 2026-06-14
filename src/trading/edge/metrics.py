@@ -59,3 +59,53 @@ def long_short_spread(signals: list[float], realized: list[float],
     gross = sum(longs) / len(longs) - sum(shorts) / len(shorts)
     cost = 4.0 * (cost_bps / 10_000.0)
     return gross - cost
+
+
+def _hit(signal: float, realized: float) -> bool:
+    return (signal > 0 and realized > 0) or (signal < 0 and realized < 0)
+
+
+def hit_rate(signals: list[float], realized: list[float]) -> float:
+    """Fraction of non-zero signals whose direction matched the realized sign.
+    0.0 when there are no directional signals."""
+    pairs = [(s, r) for s, r in zip(signals, realized) if s != 0]
+    if not pairs:
+        return 0.0
+    return sum(1 for s, r in pairs if _hit(s, r)) / len(pairs)
+
+
+def t_statistic(values: list[float]) -> float:
+    """One-sample t-stat of the mean against zero. 0.0 for fewer than 2 points or no
+    variation."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    mean = sum(values) / n
+    var = sum((v - mean) ** 2 for v in values) / (n - 1)
+    if var == 0:
+        return 0.0
+    return mean / math.sqrt(var / n)
+
+
+def calibration(confidences: list[float], signals: list[float],
+                realized: list[float],
+                edges: list[float]) -> list[tuple[float, float, float, int]]:
+    """Hit rate per confidence bucket. `edges` are bucket boundaries (e.g. [0,0.5,1]).
+    Each bucket [low, high) — the last is closed on the right. Returns
+    (low, high, hit_rate, count) per bucket. A monotonic rise = the model is calibrated.
+    """
+    out: list[tuple[float, float, float, int]] = []
+    for b in range(len(edges) - 1):
+        low, high = edges[b], edges[b + 1]
+        last = b == len(edges) - 2
+        idx = []
+        for i, c in enumerate(confidences):
+            in_bucket = (low <= c <= high) if last else (low <= c < high)
+            if in_bucket:
+                idx.append(i)
+        if not idx:
+            out.append((low, high, 0.0, 0))
+            continue
+        hits = sum(1 for i in idx if _hit(signals[i], realized[i]))
+        out.append((low, high, hits / len(idx), len(idx)))
+    return out
