@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from datetime import date, timedelta
 
 import httpx
@@ -126,11 +127,18 @@ class AlphaVantageSource:
     degrades to []/blank. Free tier includes both endpoints (25 calls/day, 5/min).
     Requires ALPHAVANTAGE_API_KEY."""
 
-    def __init__(self, api_key: str | None = None, timeout: float = 30.0) -> None:
+    def __init__(self, api_key: str | None = None, timeout: float = 30.0,
+                 delay_sec: float | None = None) -> None:
         self.api_key = api_key or os.environ.get("ALPHAVANTAGE_API_KEY", "")
         self.timeout = timeout
+        # Space out calls to stay under the per-minute cap on dense bursts (the calendar
+        # phase fires one call per universe symbol with no gaps). Override via EDGE_AV_DELAY.
+        self.delay_sec = (float(os.environ.get("EDGE_AV_DELAY", "0.8"))
+                          if delay_sec is None else delay_sec)
 
     def _get(self, params: dict) -> dict:
+        if self.delay_sec:
+            time.sleep(self.delay_sec)
         r = httpx.get(AV_BASE, params={**params, "apikey": self.api_key},
                       timeout=self.timeout)
         r.raise_for_status()
