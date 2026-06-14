@@ -135,14 +135,13 @@ def build_components():
         from trading.validation.panel import ValidationPanel
         panel = ValidationPanel()
 
-    mode_is_real = os.environ.get("BROKER", "fake") == "ibkr"
     if os.environ.get("NOTIFIER", "telegram") == "fake":
         notifier = FakeNotifier()
     else:
         from trading.reporting.telegram import TelegramNotifier
-        # On a dry-run, banner every message so it's never mistaken for real money.
-        prefix = "" if mode_is_real else "🧪 ТЕСТ — симуляция, деньги НЕ настоящие\n\n"
-        notifier = TelegramNotifier(prefix=prefix)
+        # Test and real money run under separate bots/tokens, so messages no longer need
+        # a per-message "this is a test" banner to tell them apart.
+        notifier = TelegramNotifier()
 
     # Confirmation policy: ask in Telegram by default — you keep oversight, large trades
     # wait for your tap. Tune frequency via each profile's auto_exec_threshold_usd (small
