@@ -13,14 +13,45 @@ def proposal():
                          rationale="overbought")
 
 
-def test_format_confirmation_has_agent_trade_notional_and_reason():
-    decision = GuardrailDecision(Outcome.NEEDS_CONFIRMATION, 5, [])
-    msg = format_confirmation(proposal(), decision)
-    assert "aggressive" in msg
-    assert "TSLA" in msg
-    assert "5" in msg
-    assert "1000" in msg or "1,000" in msg        # 5 * 200 notional
-    assert "overbought" in msg
+def test_confirmation_long_shows_expected_profit_and_horizon():
+    p = TradeProposal(agent_id="aggressive", symbol="AAPL", intent=Intent.OPEN_LONG,
+                      quantity=12, reference_price=185.0, stop_loss_price=176.0,
+                      rationale="перепродана, жду отскок",
+                      target_price=200.0, horizon_days=14)
+    msg = format_confirmation(p, GuardrailDecision(Outcome.NEEDS_CONFIRMATION, 12, []))
+    assert "AAPL" in msg
+    assert "Купить" in msg
+    assert "перепродана" in msg
+    assert "+8" in msg                      # +8.1% expected return
+    assert "180" in msg                     # ≈ +$180 expected profit (12 * (200-185))
+    assert "недели" in msg                  # horizon rendered ~2 недели
+    assert "176" in msg                     # stop
+
+
+def test_confirmation_short_inverts_profit_sign():
+    p = TradeProposal(agent_id="aggressive", symbol="TSLA", intent=Intent.OPEN_SHORT,
+                      quantity=5, reference_price=200.0, stop_loss_price=215.0,
+                      rationale="перегрета", target_price=180.0, horizon_days=7)
+    msg = format_confirmation(p, GuardrailDecision(Outcome.NEEDS_CONFIRMATION, 5, []))
+    assert "+10" in msg                     # short to 180 from 200 is +10% gain
+    assert "100" in msg                     # ≈ +$100 (5 * (200-180))
+
+
+def test_confirmation_close_has_no_target_block():
+    p = TradeProposal(agent_id="moderate", symbol="AAPL", intent=Intent.CLOSE_LONG,
+                      quantity=3, reference_price=190.0, stop_loss_price=None,
+                      rationale="фиксирую прибыль")
+    msg = format_confirmation(p, GuardrailDecision(Outcome.NEEDS_CONFIRMATION, 3, []))
+    assert "Цель" not in msg
+    assert "фиксирую прибыль" in msg
+
+
+def test_confirmation_escapes_rationale_html():
+    p = TradeProposal(agent_id="moderate", symbol="AAPL", intent=Intent.OPEN_LONG,
+                      quantity=1, reference_price=10.0, stop_loss_price=9.0,
+                      rationale="a < b & c", target_price=12.0, horizon_days=5)
+    msg = format_confirmation(p, GuardrailDecision(Outcome.NEEDS_CONFIRMATION, 1, []))
+    assert "a &lt; b &amp; c" in msg
 
 
 def test_format_fill_reads_naturally():

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from trading.broker.types import Fill
-from trading.domain import TradeProposal
+from trading.domain import Intent, TradeProposal
 from trading.guardrails.engine import GuardrailDecision
 
 _INTENT_RU = {
@@ -81,16 +81,41 @@ def mono_table(rows: list[list[str]], aligns: str) -> str:
 
 
 def format_confirmation(proposal: TradeProposal, decision: GuardrailDecision) -> str:
-    notional = decision.quantity * proposal.reference_price
-    stop = "—" if proposal.stop_loss_price is None else f"${proposal.stop_loss_price:,.2f}"
-    intent = _INTENT_RU.get(proposal.intent.value, proposal.intent.value)
-    return (
-        f"❓ Подтвердить сделку? · {proposal.agent_id}\n"
-        f"{intent}: {decision.quantity} × {proposal.symbol} "
-        f"@ ~${proposal.reference_price:,.2f}  (≈ ${notional:,.0f})\n"
-        f"стоп: {stop}\n"
-        f"основание: {proposal.rationale}"
-    )
+    qty = decision.quantity
+    ref = proposal.reference_price
+    notional = qty * ref
+    verb = "Купить" if proposal.intent in (Intent.OPEN_LONG, Intent.CLOSE_SHORT) else "Продать"
+    head = f"❓ <b>{verb} {html_escape(proposal.symbol)}?</b> — {html_escape(proposal.agent_id)}"
+
+    what = (f"<b>Что:</b> {intent_label(proposal.intent.value).lower()} {qty} × "
+            f"{html_escape(proposal.symbol)} по ~${ref:,.2f}  (≈ ${notional:,.0f})")
+    why = f"<b>Зачем:</b> {html_escape(proposal.rationale)}"
+    lines = [head, "", what, why]
+
+    if proposal.target_price is not None and proposal.horizon_days is not None:
+        tgt = proposal.target_price
+        # Profit if the forecast lands: longs gain as price rises, shorts as it falls.
+        if proposal.intent.is_short_side:
+            profit = (ref - tgt) * qty
+            pct = (ref - tgt) / ref if ref else 0.0
+        else:
+            profit = (tgt - ref) * qty
+            pct = (tgt - ref) / ref if ref else 0.0
+        lines.append(f"<b>Цель:</b> {pnl_color(profit)} ${tgt:,.2f} за "
+                     f"{human_horizon(proposal.horizon_days)}")
+        lines.append(f"        ожидаемая прибыль {pct:+.1%}  (≈ {profit:+,.0f}$)")
+
+    if proposal.stop_loss_price is not None:
+        stop = proposal.stop_loss_price
+        if proposal.intent.is_short_side:
+            loss = (ref - stop) * qty
+            stop_pct = (ref - stop) / ref if ref else 0.0
+        else:
+            loss = (stop - ref) * qty
+            stop_pct = (stop - ref) / ref if ref else 0.0
+        lines.append(f"<b>Риск:</b> 🔴 стоп ${stop:,.2f}  ({stop_pct:+.1%}, ≈ {loss:+,.0f}$)")
+
+    return "\n".join(lines)
 
 
 def format_fill(agent_id: str, fill: Fill) -> str:
