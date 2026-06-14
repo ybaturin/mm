@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Callable
 
-from trading.data.bars import Bar, MarketDataSource
+from trading.data.bars import Bar
+from trading.data.yfinance_source import bars_from_dataframe
 
 
 def forward_return(bars: list[Bar], decision_date: str,
@@ -37,19 +39,32 @@ def _add_calendar_days(d: str, n: int) -> str:
     return (date.fromisoformat(d) + timedelta(days=n)).isoformat()
 
 
-def realized_market_adjusted(source: MarketDataSource, symbol: str,
-                             decision_date: str, horizon_days: int,
-                             pad_days: int = 10) -> float | None:
-    """Thin wrapper: fetch enough bars to cover the forward window, then delegate to
-    the pure math. Returns None on any data gap (never raises on missing forward data).
+def yfinance_window(symbol: str, start_date: str, end_date: str) -> list[Bar]:
+    """Daily bars in [start_date, end_date] via yfinance. Unlike YFinanceSource.history
+    (which is anchored on *today* for the live cycle), this fetches an explicit historical
+    window — needed to score events that happened weeks/months ago. Degrades to []."""
+    import yfinance as yf
 
-    The fetch anchors on a date well past the horizon so weekends/holidays are covered.
-    """
-    span = horizon_days * 2 + pad_days
-    anchor = _add_calendar_days(decision_date, span)
+    df = yf.Ticker(symbol).history(start=start_date, end=end_date, interval="1d")
+    if df.empty:
+        return []
+    return bars_from_dataframe(df)
+
+
+FetchWindow = Callable[[str, str, str], list[Bar]]
+
+
+def realized_market_adjusted(symbol: str, decision_date: str, horizon_days: int,
+                             fetch_window: FetchWindow = yfinance_window,
+                             pad_days: int = 14) -> float | None:
+    """Market-adjusted realized return over the horizon. Fetches an explicit date window
+    around the event (so historical events score correctly) and delegates to the pure
+    math. Returns None on any data gap — never raises on missing forward data."""
+    start = _add_calendar_days(decision_date, -3)
+    end = _add_calendar_days(decision_date, horizon_days * 2 + pad_days)
     try:
-        stock = source.history(symbol, days=span + 5, as_of_date=anchor)
-        spy = source.history("SPY", days=span + 5, as_of_date=anchor)
-    except KeyError:
+        stock = fetch_window(symbol, start, end)
+        spy = fetch_window("SPY", start, end)
+    except Exception:
         return None
     return market_adjusted_return(stock, spy, decision_date, horizon_days)

@@ -60,6 +60,15 @@ class EdgeRepository:
         )
         self.conn.commit()
 
+    def exists(self, symbol: str, report_date: str) -> bool:
+        """True if this (symbol, report_date) was already recorded — lets a run resume
+        across days (free-tier rate limits) without inserting duplicates."""
+        row = self.conn.execute(
+            "SELECT 1 FROM edge_predictions WHERE symbol = ? AND report_date = ? LIMIT 1",
+            (symbol, report_date),
+        ).fetchone()
+        return row is not None
+
     def all(self) -> list[sqlite3.Row]:
         return self.conn.execute(
             "SELECT * FROM edge_predictions ORDER BY id").fetchall()
