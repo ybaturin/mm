@@ -5,7 +5,7 @@ import math
 from trading.broker.fake import FakeBroker
 from trading.config import RiskProfile, load_profiles
 from trading.data.bars import Bar
-from trading.data.briefing import load_universe
+from trading.data.briefing import build_briefing, load_universe
 from trading.data.fake_source import FakeMarketDataSource
 from trading.orchestrator.cycle import run_cycle
 from trading.orchestrator.strategy import FakeStrategy
@@ -60,6 +60,8 @@ def run_simulation(
             broker = brokers[name]
             for s in universe:
                 broker.set_price(s, prices[s])
+            # Memory is point-in-time (journal) so it stays on; news is current-only and
+            # would be look-ahead in a historical replay, so it is deliberately omitted.
             state = run_cycle(
                 agent_id=name, profile=profile, broker=broker, source=source,
                 accounts=accounts, journal=journal, strategy=FakeStrategy(),

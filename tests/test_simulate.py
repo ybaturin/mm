@@ -67,3 +67,40 @@ def test_simulation_never_breaches_position_cap(repos):
         for p in state.positions:
             notional = abs(p.quantity) * final_prices[p.symbol]
             assert notional <= profile.max_position_pct * profile.budget + 1.0
+
+
+def test_simulation_does_not_attach_news():
+    """Backtest must never surface news (yfinance .news has no point-in-time access)."""
+    from trading.config import load_profiles
+    from trading.data.briefing import load_universe
+    from trading.orchestrator.simulate import run_simulation, synthetic_series, LOOKBACK
+    from trading.persistence.accounts import AccountRepository
+    from trading.persistence.db import connect
+    from trading.persistence.journal import JournalRepository
+    from trading.persistence.schema import init_db
+
+    profiles = {"moderate": load_profiles("config/profiles.toml")["moderate"]}
+    universe = load_universe("config/universe.toml")
+    series = synthetic_series(universe, total_bars=LOOKBACK + 5 + 1)
+    conn = connect(":memory:")
+    init_db(conn)
+    accounts, journal = AccountRepository(conn), JournalRepository(conn)
+
+    captured = {"calls": 0, "news_seen": False}
+    import trading.orchestrator.cycle as cyc
+    real_build = cyc.build_briefing
+
+    def spy_build(*a, **kw):
+        b = real_build(*a, **kw)
+        captured["calls"] += 1
+        if b.news:
+            captured["news_seen"] = True
+        return b
+
+    cyc.build_briefing = spy_build
+    try:
+        run_simulation(5, profiles, universe, series, accounts, journal)
+    finally:
+        cyc.build_briefing = real_build
+    assert captured["calls"] > 0           # the spy actually ran (guard is not vacuous)
+    assert captured["news_seen"] is False
