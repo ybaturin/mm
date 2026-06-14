@@ -29,26 +29,31 @@ def run_measurement(*, events: list[EarningsEvent], doc_source: DocumentSource,
                   file=sys.stderr, flush=True)
         if repo.exists(event.symbol, event.report_date):
             continue
+        # Per-event isolation: a transient API/network failure on one event must not
+        # abort an unattended multi-hour batch. Skip the event; idempotency resumes it.
         try:
             docs = doc_source.documents(event)
-        except Exception:
+            if not docs.transcript.strip():
+                continue  # no transcript -> nothing to deep-read; skip rather than record noise
+            probe = predictor.memory_probe(event)
+            pred = predictor.predict(docs, horizon_days)
+            pid = repo.record(
+                symbol=event.symbol, report_date=event.report_date,
+                decision_date=event.decision_date, horizon_days=horizon_days,
+                direction=pred.direction, magnitude_pct=pred.magnitude_pct,
+                confidence=pred.confidence, rationale=pred.rationale,
+                knows_outcome=probe.knows_outcome, eps_actual=event.eps_actual,
+                eps_consensus=event.eps_consensus, model=predictor.model,
+            )
+            realized = realized_market_adjusted(event.symbol, event.decision_date,
+                                                horizon_days, fetch_window=fetch)
+            if realized is not None:
+                repo.set_realized(pid, realized)
+        except Exception as exc:
+            if verbose:
+                print(f"  skip {event.symbol} {event.report_date}: {exc!r}",
+                      file=sys.stderr, flush=True)
             continue
-        if not docs.transcript.strip():
-            continue  # no transcript -> nothing to deep-read; skip rather than record noise
-        probe = predictor.memory_probe(event)
-        pred = predictor.predict(docs, horizon_days)
-        pid = repo.record(
-            symbol=event.symbol, report_date=event.report_date,
-            decision_date=event.decision_date, horizon_days=horizon_days,
-            direction=pred.direction, magnitude_pct=pred.magnitude_pct,
-            confidence=pred.confidence, rationale=pred.rationale,
-            knows_outcome=probe.knows_outcome, eps_actual=event.eps_actual,
-            eps_consensus=event.eps_consensus, model=predictor.model,
-        )
-        realized = realized_market_adjusted(event.symbol, event.decision_date,
-                                            horizon_days, fetch_window=fetch)
-        if realized is not None:
-            repo.set_realized(pid, realized)
     return build_report(repo.scored())
 
 

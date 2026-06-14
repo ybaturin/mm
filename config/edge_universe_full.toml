@@ -1,0 +1,40 @@
+# config/edge_universe_full.toml — large liquid US universe for an all-day edge run.
+# ~250 names with good earnings-transcript coverage, spread across sectors so reports
+# land across the whole post-cutoff window. Large-cap focus (transcript coverage +
+# liquidity); mid/small-cap (stronger PEAD) is the next expansion step.
+symbols = [
+    # Tech / semis / software
+    "AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "AMD", "INTC", "CSCO",
+    "QCOM", "TXN", "IBM", "NOW", "INTU", "AMAT", "MU", "ADI", "LRCX", "KLAC",
+    "PANW", "SNPS", "CDNS", "ACN", "ADP", "FTNT", "ANET", "MRVL", "ON", "MCHP",
+    "WDAY", "TEAM", "DDOG", "SNOW", "NET", "CRWD", "ZS", "DELL", "HPQ", "HPE",
+    "WDC", "STX", "NXPI", "GLW", "KEYS", "FICO", "ROP", "MSI", "IT", "GRMN",
+    # Communication / internet / media
+    "GOOGL", "GOOG", "META", "AMZN", "NFLX", "DIS", "CMCSA", "TMUS", "VZ", "T",
+    "CHTR", "EA", "TTWO", "WBD", "OMC", "PINS", "SNAP", "RBLX", "SPOT", "UBER",
+    # Consumer discretionary
+    "TSLA", "HD", "LOW", "NKE", "MCD", "SBUX", "BKNG", "TGT", "ABNB", "MAR",
+    "HLT", "CMG", "ORLY", "AZO", "ROST", "TJX", "DHI", "LEN", "YUM", "F",
+    "GM", "RIVN", "LULU", "EBAY", "DASH", "EXPE", "GPN",
+    # Consumer staples
+    "WMT", "COST", "PG", "KO", "PEP", "PM", "MO", "MDLZ", "CL", "KMB",
+    "GIS", "KHC", "HSY", "STZ", "KDP", "MNST", "SYY", "KR", "DG", "DLTR",
+    # Financials
+    "JPM", "BAC", "WFC", "GS", "MS", "C", "AXP", "BLK", "SCHW", "SPGI",
+    "V", "MA", "PYPL", "USB", "PNC", "TFC", "COF", "BK", "MET", "PRU",
+    "AIG", "TRV", "ALL", "CB", "PGR", "AON", "MMC", "ICE", "CME", "MCO",
+    "FIS", "FISV", "COIN",
+    # Health care
+    "UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT", "DHR", "BMY",
+    "AMGN", "GILD", "CVS", "MDT", "ISRG", "VRTX", "REGN", "ZTS", "BSX", "SYK",
+    "ELV", "CI", "HUM", "MCK", "BDX", "HCA", "EW", "DXCM", "IDXX", "BIIB",
+    "MRNA", "A", "IQV",
+    # Industrials
+    "BA", "CAT", "GE", "HON", "UPS", "RTX", "LMT", "DE", "UNP", "MMM",
+    "GD", "NOC", "EMR", "ETN", "ITW", "CSX", "NSC", "FDX", "WM", "PH",
+    "GEV", "CARR", "OTIS", "PCAR", "CMI", "PWR", "URI", "FAST", "ODFL", "LHX",
+    # Energy / materials / utilities
+    "XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "WMB",
+    "KMI", "HAL", "DVN", "HES", "LIN", "APD", "SHW", "FCX", "NEM", "ECL",
+    "DOW", "NUE", "NEE", "DUK", "SO", "D", "AEP", "EXC", "SRE", "XEL",
+]
