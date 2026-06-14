@@ -9,6 +9,7 @@ Env:
   PANEL                   on (default) | off
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   required unless NOTIFIER=fake
   NOTIFIER                telegram (default) | fake
+  NEWS                    yfinance (default) | fake
   IBKR_HOST, IBKR_PORT, IBKR_CLIENT_ID_BASE   (BROKER=ibkr)
 
 BROKER=fake is a real dry-run: live Claude + live Telegram on simulated fills priced
@@ -89,6 +90,15 @@ def resolve_db_path() -> str:
     return os.environ.get("DB_PATH") or f"data/trading-{_mode_tag()}.db"
 
 
+def _news_source_for():
+    """NEWS=yfinance (default) | fake. yfinance failures degrade to no news."""
+    if os.environ.get("NEWS", "yfinance") == "fake":
+        from trading.data.news import FakeNews
+        return FakeNews()
+    from trading.data.news import YFinanceNews
+    return YFinanceNews()
+
+
 def build_components():
     profiles = load_profiles("config/profiles.toml")
     universe = load_universe("config/universe.toml")
@@ -152,6 +162,7 @@ def build_components():
     return dict(profiles=profiles, brokers=brokers, source=source, strategy=strategy,
                 panel=panel, notifier=notifier, accounts=accounts, journal=journal,
                 freezes=freezes, run_lock=run_lock, universe=universe, confirm=confirm,
+                news_source=_news_source_for(),
                 floor_fraction=float(os.environ.get("FLOOR_FRACTION", "0.8")))
 
 

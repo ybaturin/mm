@@ -39,6 +39,7 @@ def run_cycle(
     confirm: ConfirmFn | None = None,
     panel=None,
     notifier=None,
+    news_source=None,
 ) -> AgentState:
     """Run one agent's full daily cycle. The keystone that connects every component.
 
@@ -63,7 +64,8 @@ def run_cycle(
     peak = max(prev.peak_equity, start_equity) if prev else start_equity
 
     state = _state_from_broker(agent_id, broker, peak, start_equity)
-    briefing = build_briefing(state, universe, source, as_of_date)
+    briefing = build_briefing(state, universe, source, as_of_date,
+                              journal=journal, news_source=news_source)
     proposals = strategy.propose(briefing, profile)
 
     trades_today = 0

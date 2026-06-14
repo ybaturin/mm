@@ -138,3 +138,36 @@ def test_run_cycle_skips_confirmation_when_declined(repos):
     assert broker.positions() == []
     # but the decision was still journaled
     assert journal.decisions_for("moderate")
+
+
+def test_run_cycle_passes_news_into_briefing(tmp_path):
+    """A captured-briefing strategy proves news reaches the prompt-facing briefing."""
+    from trading.data.news import FakeNews, Headline
+
+    captured = {}
+
+    class CapturingStrategy:
+        def propose(self, briefing, profile):
+            captured["briefing"] = briefing
+            return []
+
+    from trading.config import load_profiles
+
+    bars = [Bar(f"2026-06-{i+1:02d}", 100.0 + i, 100.0 + i, 100.0 + i, 100.0 + i, 1000)
+            for i in range(60)]
+    source = FakeMarketDataSource({"AAPL": bars})
+    conn = connect(str(tmp_path / "t.db"))
+    init_db(conn)
+    accounts, journal = AccountRepository(conn), JournalRepository(conn)
+    profile = load_profiles("config/profiles.toml")["moderate"]
+    broker = FakeBroker(cash=profile.budget)
+    broker.set_price("AAPL", 159.0)
+    news = FakeNews({"AAPL": [Headline("AAPL", "News!", "Reuters", "2026-06-13")]})
+
+    run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
+              accounts=accounts, journal=journal, strategy=CapturingStrategy(),
+              universe=["AAPL"], as_of_date="2026-12-31", ts="2026-12-31T13:30:00Z",
+              confirm=lambda p, d: True, news_source=news)
+
+    assert captured["briefing"].news["AAPL"][0].title == "News!"
+    assert captured["briefing"].memory is not None     # journal always wired now

@@ -49,6 +49,7 @@ def run_daily(
     floor_fraction: float = 0.8,
     confirm=None,
     run_lock=None,
+    news_source=None,
 ) -> None:
     """Run the full pre-market cycle for every agent. The production keystone.
 
@@ -65,7 +66,7 @@ def run_daily(
     try:
         _run_daily_body(
             profiles, brokers, source, strategy, panel, notifier, accounts, journal,
-            freezes, universe, as_of_date, ts, floor_fraction, confirm)
+            freezes, universe, as_of_date, ts, floor_fraction, confirm, news_source)
     finally:
         if run_lock is not None:
             run_lock.release()
@@ -73,7 +74,7 @@ def run_daily(
 
 def _run_daily_body(
     profiles, brokers, source, strategy, panel, notifier, accounts, journal,
-    freezes, universe, as_of_date, ts, floor_fraction, confirm,
+    freezes, universe, as_of_date, ts, floor_fraction, confirm, news_source=None,
 ) -> None:
     if confirm is None:
         confirm = make_confirm(notifier)
@@ -104,6 +105,7 @@ def _run_daily_body(
                 agent_id=name, profile=profile, broker=broker, source=source,
                 accounts=accounts, journal=journal, strategy=strategy, universe=universe,
                 as_of_date=as_of_date, ts=ts, confirm=confirm, panel=panel, notifier=notifier,
+                news_source=news_source,
             )
 
             post = accounts.get_state(name)
