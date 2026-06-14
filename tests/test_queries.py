@@ -83,6 +83,19 @@ def test_positions_report_values_long_and_short(accounts):
     assert rep.portfolio_unrealized == pytest.approx(150.0)
 
 
+def test_trades_report_attaches_realized_pnl_on_close(tmp_path):
+    conn = connect(str(tmp_path / "rt.db"))
+    init_db(conn)
+    jr = JournalRepository(conn)
+    jr.record_fill("2026-06-10T13:30:00Z", "a", "AAPL", Intent.OPEN_LONG, 10, 100.0, None)
+    jr.record_fill("2026-06-12T13:30:00Z", "a", "AAPL", Intent.CLOSE_LONG, 10, 110.0, None)
+    rep = trades_report(jr, ["a"])
+    close = next(r for r in rep.rows if r.intent == "close_long")
+    open_ = next(r for r in rep.rows if r.intent == "open_long")
+    assert close.realized_pnl == 100.0     # (110-100)*10
+    assert open_.realized_pnl is None      # opens carry no realized P&L
+
+
 def test_positions_report_includes_cash(accounts):
     accounts.save_state(AgentState(
         "m", cash=1500.0, positions=[Position("AAPL", 10, 200.0)]))

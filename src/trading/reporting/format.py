@@ -247,14 +247,17 @@ def format_trades(rep: TradesReport) -> str:
     blocks = ["🧾 <b>Последние сделки</b>"]
     for aid, rows in by_agent.items():
         # A header row goes first so Telegram's code-block </> copy button overlaps the
-        # labels, not the data on the first trade row.
-        table_rows = [["дата", "к-во", "тикер", "цена"]]
-        table_rows += [[f"{r.ts[8:10]}.{r.ts[5:7]}",                    # DD.MM from ISO ts
-                        (f"+{r.quantity}" if r.intent in _SIGNED_BUYS else f"−{r.quantity}"),
-                        r.symbol, f"{r.price:,.2f}"] for r in rows]
+        # labels, not the data on the first trade row. The PnL column carries the realized
+        # result on closing (sell) rows; opening (buy) rows show a dash.
+        table_rows = [["дата", "к-во", "тикер", "цена", "PnL"]]
+        for r in rows:
+            pnl = "—" if r.realized_pnl is None else money_signed(r.realized_pnl)
+            table_rows.append([f"{r.ts[8:10]}.{r.ts[5:7]}",            # DD.MM from ISO ts
+                               (f"+{r.quantity}" if r.intent in _SIGNED_BUYS else f"−{r.quantity}"),
+                               r.symbol, f"{r.price:,.2f}", pnl])
         blocks.append(_group_header(aid))
-        blocks.append(mono_table(table_rows, aligns="lllr"))
-    return "\n".join(blocks) + "\n\n+N — купил, −N — продал"
+        blocks.append(mono_table(table_rows, aligns="lllrr"))
+    return "\n".join(blocks) + "\n\n+N — купил, −N — продал · PnL по закрытым"
 
 
 def format_retro(agent_id: str, symbol: str, quantity: int, entry_price: float,

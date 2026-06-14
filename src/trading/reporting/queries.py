@@ -173,6 +173,7 @@ class TradeLine:
     symbol: str
     quantity: int
     price: float
+    realized_pnl: float | None = None   # set on closing fills; None for opens
 
 
 @dataclass(frozen=True)
@@ -202,12 +203,48 @@ def status_report(accounts: AccountRepository, journal: JournalRepository,
     return StatusReport(total_equity, today_pnl, today_pct, open_count, frozen)
 
 
+_OPEN_SIDE = {"open_long": "long", "open_short": "short"}
+_CLOSE_SIDE = {"close_long": "long", "close_short": "short"}
+
+
+def realized_pnl_by_fill(fills) -> dict[int, float]:
+    """Realized P&L for each closing fill, via FIFO over the agent's chronological fills.
+    Opens consume nothing; a close is matched against the oldest lots of the same side."""
+    from collections import defaultdict, deque
+
+    lots: dict[tuple[str, str], deque] = defaultdict(deque)
+    out: dict[int, float] = {}
+    for f in fills:
+        intent = f["intent"]
+        symbol = f["symbol"]
+        if intent in _OPEN_SIDE:
+            lots[(symbol, _OPEN_SIDE[intent])].append([f["quantity"], f["price"]])
+        elif intent in _CLOSE_SIDE:
+            side = _CLOSE_SIDE[intent]
+            queue = lots[(symbol, side)]
+            remaining, exit_price, pnl = f["quantity"], f["price"], 0.0
+            while remaining > 0 and queue:
+                lot = queue[0]
+                matched = min(remaining, lot[0])
+                entry = lot[1]
+                pnl += ((exit_price - entry) if side == "long" else (entry - exit_price)) * matched
+                lot[0] -= matched
+                remaining -= matched
+                if lot[0] == 0:
+                    queue.popleft()
+            out[f["id"]] = round(pnl, 2)
+    return out
+
+
 def trades_report(journal: JournalRepository, agent_ids: list[str],
                   limit: int = 10) -> TradesReport:
     rows = []
     for aid in agent_ids:
-        rows.extend(journal.fills_for(aid))
-    rows.sort(key=lambda r: (r["ts"], r["id"]), reverse=True)
-    lines = [TradeLine(r["ts"], r["agent_id"], r["intent"], r["symbol"],
-                       r["quantity"], r["price"]) for r in rows[:limit]]
-    return TradesReport(lines)
+        fills = journal.fills_for(aid)
+        realized = realized_pnl_by_fill(fills)
+        for r in fills:
+            rows.append((r["ts"], r["id"],
+                         TradeLine(r["ts"], r["agent_id"], r["intent"], r["symbol"],
+                                   r["quantity"], r["price"], realized.get(r["id"]))))
+    rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return TradesReport([line for _, _, line in rows[:limit]])
