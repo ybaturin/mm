@@ -11,7 +11,7 @@ def test_init_db_creates_all_tables(tmp_path):
     ).fetchall()
     names = {r["name"] for r in rows}
     assert names == {"accounts", "positions", "decisions", "fills", "equity_snapshots",
-                     "vetoes", "freezes", "run_state"}
+                     "vetoes", "freezes", "theses", "run_state"}
 
 
 def test_init_db_is_idempotent(tmp_path):
@@ -22,7 +22,7 @@ def test_init_db_is_idempotent(tmp_path):
         "SELECT count(*) AS c FROM sqlite_master "
         "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     ).fetchone()["c"]
-    assert count == 8
+    assert count == 9
 
 
 def test_connection_uses_row_factory(tmp_path):
