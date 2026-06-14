@@ -6,7 +6,8 @@ from trading.persistence.freezes import FreezeStore
 from trading.persistence.journal import JournalRepository
 from trading.persistence.schema import init_db
 from trading.reporting.queries import (
-    pnl_report, positions_report, status_report, trades_report,
+    days_left, path_to_target, pnl_report, positions_report, status_report,
+    trades_report,
 )
 
 
@@ -117,3 +118,50 @@ def test_trades_report_sorts_desc_and_limits(tmp_path):
     jr.record_fill("2026-06-12T13:30:00Z", "a", "MSFT", Intent.OPEN_LONG, 2, 400.0, None)
     rep = trades_report(jr, ["a", "b"], limit=2)
     assert [r.symbol for r in rep.rows] == ["TSLA", "MSFT"]   # most recent first
+
+
+# --- forecast progress helpers + benchmark ---
+
+def test_path_to_target_long():
+    # entry 100, target 120, current 110 -> halfway.
+    assert path_to_target(100.0, 110.0, 120.0) == 0.5
+
+
+def test_path_to_target_short():
+    # short: entry 200, target 180, current 190 -> halfway.
+    assert path_to_target(200.0, 190.0, 180.0) == 0.5
+
+
+def test_path_to_target_handles_degenerate_target():
+    assert path_to_target(100.0, 110.0, 100.0) == 0.0
+
+
+def test_days_left_counts_down():
+    assert days_left("2026-06-14", horizon_days=14, today="2026-06-19") == 9
+
+
+def test_pnl_report_includes_benchmark_when_fn_given(journal):
+    journal.record_equity_snapshot("aggressive", "2026-06-07", 10000.0)
+    journal.record_equity_snapshot("aggressive", "2026-06-14", 10800.0)
+    rep = pnl_report(journal, ["aggressive"], "week",
+                     benchmark_fn=lambda start, end: 0.02)
+    assert abs(rep.benchmark_pct - 0.02) < 1e-9
+
+
+def test_positions_report_enriches_with_thesis(tmp_path):
+    from trading.persistence.theses import ThesisStore
+
+    conn = connect(str(tmp_path / "p.db"))
+    init_db(conn)
+    acc = AccountRepository(conn)
+    acc.save_state(AgentState("aggressive", cash=0.0,
+                              positions=[Position("IWM", 3, 292.95)]))
+    theses = ThesisStore(conn)
+    theses.upsert("aggressive", "IWM", entry_price=292.95, target_price=315.0,
+                  horizon_days=10, opened_on="2026-06-14", rationale="x")
+    rep = positions_report(acc, ["aggressive"], lambda s: 298.10,
+                           theses=theses, today="2026-06-16")
+    line = rep.per_agent["aggressive"][0]
+    assert line.target_price == 315.0
+    assert 0.0 < line.path_pct < 1.0
+    assert line.days_left == 8

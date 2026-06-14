@@ -11,6 +11,20 @@ from trading.persistence.journal import JournalRepository
 _LOOKBACK_DAYS = {"day": 1, "week": 7, "month": 30}
 
 
+def path_to_target(entry: float, current: float, target: float) -> float:
+    """Fraction of the entry->target path covered. Sign-agnostic (works for shorts).
+    Degenerate target == entry returns 0.0."""
+    span = target - entry
+    if span == 0:
+        return 0.0
+    return (current - entry) / span
+
+
+def days_left(opened_on: str, horizon_days: int, today: str) -> int:
+    """Calendar days remaining until the horizon. Negative once overdue."""
+    return horizon_days - (date.fromisoformat(today) - date.fromisoformat(opened_on)).days
+
+
 @dataclass(frozen=True)
 class PnlLine:
     agent_id: str
@@ -28,6 +42,7 @@ class PnlReport:
     portfolio_end: float
     portfolio_pnl: float
     portfolio_pct: float
+    benchmark_pct: float | None = None
 
 
 def _baseline_equity(curve: list[tuple[str, float]], period: str) -> float:
@@ -45,13 +60,30 @@ def _baseline_equity(curve: list[tuple[str, float]], period: str) -> float:
     return baseline
 
 
-def pnl_report(journal: JournalRepository, agent_ids: list[str], period: str) -> PnlReport:
+def _baseline_date(curve: list[tuple[str, float]], period: str) -> str:
+    """Date of the snapshot `_baseline_equity` selects — for benchmark alignment."""
+    if period == "all":
+        return curve[0][0]
+    cutoff = date.fromisoformat(curve[-1][0]) - timedelta(days=_LOOKBACK_DAYS[period])
+    chosen = curve[0][0]
+    for d, _ in curve:
+        if date.fromisoformat(d) <= cutoff:
+            chosen = d
+        else:
+            break
+    return chosen
+
+
+def pnl_report(journal: JournalRepository, agent_ids: list[str], period: str,
+               benchmark_fn: Callable[[str, str], float | None] | None = None) -> PnlReport:
     per_agent: list[PnlLine] = []
     p_start = p_end = 0.0
+    last_curve: list[tuple[str, float]] = []
     for aid in agent_ids:
         curve = journal.equity_curve(aid)
         if not curve:
             continue
+        last_curve = curve
         start_eq = _baseline_equity(curve, period)
         end_eq = curve[-1][1]
         pnl = end_eq - start_eq
@@ -61,7 +93,10 @@ def pnl_report(journal: JournalRepository, agent_ids: list[str], period: str) ->
         p_end += end_eq
     p_pnl = p_end - p_start
     p_pct = p_pnl / p_start if p_start else 0.0
-    return PnlReport(period, per_agent, p_start, p_end, p_pnl, p_pct)
+    bench = None
+    if benchmark_fn is not None and last_curve:
+        bench = benchmark_fn(_baseline_date(last_curve, period), last_curve[-1][0])
+    return PnlReport(period, per_agent, p_start, p_end, p_pnl, p_pct, bench)
 
 
 @dataclass(frozen=True)
@@ -72,6 +107,9 @@ class PositionLine:
     avg_price: float
     current_price: float
     unrealized_pnl: float
+    target_price: float | None = None
+    path_pct: float | None = None
+    days_left: int | None = None
 
 
 @dataclass(frozen=True)
@@ -82,19 +120,28 @@ class PositionsReport:
 
 
 def positions_report(accounts: AccountRepository, agent_ids: list[str],
-                     price_fn: Callable[[str], float]) -> PositionsReport:
+                     price_fn: Callable[[str], float],
+                     theses=None, today: str | None = None) -> PositionsReport:
     per_agent: dict[str, list[PositionLine]] = {}
     port_unreal = 0.0
     port_mv = 0.0
     for aid in agent_ids:
         state = accounts.get_state(aid)
         lines: list[PositionLine] = []
+        forecasts = theses.all_for(aid) if theses is not None else {}
         if state is not None:
             for p in state.positions:
                 price = price_fn(p.symbol)
                 unreal = (price - p.avg_price) * p.quantity
+                tgt = path = left = None
+                row = forecasts.get(p.symbol)
+                if row is not None:
+                    tgt = row["target_price"]
+                    path = path_to_target(row["entry_price"], price, row["target_price"])
+                    if today is not None:
+                        left = days_left(row["opened_on"], row["horizon_days"], today)
                 lines.append(PositionLine(aid, p.symbol, p.quantity, p.avg_price,
-                                          price, unreal))
+                                          price, unreal, tgt, path, left))
                 port_unreal += unreal
                 port_mv += price * p.quantity
         per_agent[aid] = lines
