@@ -16,6 +16,19 @@ class _Resp:
         return self._payload
 
 
+def test_notify_sends_html_parse_mode():
+    sent = {}
+
+    class C:
+        def post(self, url, json=None):
+            sent.update(json or {})
+            return _Resp({"ok": True})
+
+    n = TelegramNotifier(token="t", chat_id=str(ADMIN), client=C())
+    n.notify("hello")
+    assert sent["parse_mode"] == "HTML"
+
+
 class FakeTelegramClient:
     """Simulates the Telegram Bot API for sendMessage / getUpdates / answerCallbackQuery."""
 

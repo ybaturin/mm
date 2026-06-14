@@ -168,3 +168,24 @@ def test_poll_once_handles_getupdates_conflict(bot):
     b.client.get = fake_get
     # a 409 (another getUpdates consumer) must not crash; offset is preserved
     assert b.poll_once(offset=5, now_iso="2026-06-13T13:30:10Z") == 5
+
+
+def test_send_uses_html_parse_mode():
+    sent = []
+
+    class C:
+        def post(self, url, json=None):
+            sent.append(json)
+            return FakeClient._Resp({"ok": True, "result": {}})
+
+        def get(self, url, params=None):
+            return FakeClient._Resp({"ok": True, "result": []})
+
+    bot = Bot(client=C(), base="https://api.telegram.org/botX",
+              accounts=None, journal=None, freezes=None, run_lock=None,
+              agent_ids=[], price_fn=lambda s: 0.0, chat_id=str(ADMIN),
+              admin_ids={ADMIN})
+    bot._send("hi")
+    bot._edit(7, "edited")
+    assert sent[0]["parse_mode"] == "HTML"
+    assert sent[1]["parse_mode"] == "HTML"

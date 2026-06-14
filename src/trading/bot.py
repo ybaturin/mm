@@ -51,7 +51,7 @@ class Bot:
 
     # --- transport helpers ---
     def _send(self, text: str, reply_markup=None) -> None:
-        payload = {"chat_id": self.chat_id, "text": text}
+        payload = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"}
         if reply_markup is not None:
             payload["reply_markup"] = reply_markup
         self.client.post(f"{self.base}/sendMessage", json=payload)
@@ -59,7 +59,7 @@ class Bot:
     def _edit(self, message_id: int, text: str) -> None:
         self.client.post(f"{self.base}/editMessageText",
                          json={"chat_id": self.chat_id, "message_id": message_id,
-                               "text": text})
+                               "text": text, "parse_mode": "HTML"})
 
     def _answer(self, cb_id: str) -> None:
         self.client.post(f"{self.base}/answerCallbackQuery",

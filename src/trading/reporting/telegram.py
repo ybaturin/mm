@@ -38,7 +38,8 @@ class TelegramNotifier:
 
     def notify(self, text: str) -> None:
         self.client.post(f"{self.base}/sendMessage",
-                         json={"chat_id": self.chat_id, "text": f"{self.prefix}{text}"})
+                         json={"chat_id": self.chat_id, "text": f"{self.prefix}{text}",
+                               "parse_mode": "HTML"})
 
     def request_confirmation(self, text: str) -> bool:
         text = f"{self.prefix}{text}"
@@ -59,7 +60,8 @@ class TelegramNotifier:
         ]]}
         sent = self.client.post(
             f"{self.base}/sendMessage",
-            json={"chat_id": self.chat_id, "text": text, "reply_markup": keyboard},
+            json={"chat_id": self.chat_id, "text": text, "reply_markup": keyboard,
+                  "parse_mode": "HTML"},
         ).json()
         message_id = sent["result"]["message_id"]
 
@@ -70,7 +72,7 @@ class TelegramNotifier:
             self.client.post(
                 f"{self.base}/editMessageText",
                 json={"chat_id": self.chat_id, "message_id": message_id,
-                      "text": f"{text}\n\n— {verdict}"},
+                      "text": f"{text}\n\n— {verdict}", "parse_mode": "HTML"},
             )
             if cb_id is not None:
                 self.client.post(f"{self.base}/answerCallbackQuery",
