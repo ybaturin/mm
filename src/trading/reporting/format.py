@@ -41,14 +41,15 @@ def _plural(n: int, forms: tuple[str, str, str]) -> str:
 
 
 def human_horizon(days: int) -> str:
-    """Render a horizon in days as a human phrase: '3 дня', '~1 неделя', '~2 недели'."""
+    """Render a horizon in days as a human phrase, in the accusative case — it is always
+    read after 'за' ('за 3 дня', 'за ~1 неделю', 'за ~2 недели')."""
     if days < 6:
         return f"{days} {_plural(days, ('день', 'дня', 'дней'))}"
     if days <= 9:
-        return "~1 неделя"
+        return "~1 неделю"
     if days <= 24:
         w = round(days / 7)
-        return f"~{w} {_plural(w, ('неделя', 'недели', 'недель'))}"
+        return f"~{w} {_plural(w, ('неделю', 'недели', 'недель'))}"
     m = round(days / 30)
     return f"~{m} {_plural(m, ('месяц', 'месяца', 'месяцев'))}"
 

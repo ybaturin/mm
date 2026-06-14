@@ -155,7 +155,8 @@ def test_html_escape_neutralizes_markup():
 
 def test_human_horizon_buckets():
     assert human_horizon(3) == "3 дня"
-    assert human_horizon(7) == "~1 неделя"
+    assert human_horizon(7) == "~1 неделю"
+    assert human_horizon(10) == "~1 неделю"
     assert human_horizon(14) == "~2 недели"
     assert human_horizon(30) == "~1 месяц"
 
