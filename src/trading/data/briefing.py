@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from trading.analysis.round_trips import RoundTrip
 from trading.data.bars import MarketDataSource
 from trading.data.indicators import pct_change, rsi, sma
 from trading.domain import AgentState
@@ -22,12 +23,39 @@ class SymbolBrief:
 
 
 @dataclass(frozen=True)
+class OpenPositionMemory:
+    symbol: str
+    quantity: int
+    avg_price: float
+    rationale: str          # why this position was opened (latest opening decision)
+    unrealized_pct: float
+
+
+@dataclass(frozen=True)
+class SelfStats:
+    closed_trades: int
+    win_rate: float
+    avg_win: float
+    avg_loss: float
+    total_realized_pnl: float
+
+
+@dataclass(frozen=True)
+class Memory:
+    open_positions: list[OpenPositionMemory]
+    recent_closed: list[RoundTrip]
+    stats: SelfStats | None
+
+
+@dataclass(frozen=True)
 class Briefing:
     agent_id: str
     as_of_date: str
     cash: float
     equity: float
     symbols: list[SymbolBrief]
+    memory: "Memory | None" = None
+    news: dict = field(default_factory=dict)
 
 
 def load_universe(path: str | Path) -> list[str]:
