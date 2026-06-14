@@ -17,8 +17,16 @@ def run_measurement(*, events: list[EarningsEvent], doc_source: DocumentSource,
     Any per-event data failure degrades to skipping that event — it never aborts the
     batch.
     """
+    import os
+    import sys
+
     fetch = fetch_window or yfinance_window
-    for event in events:
+    verbose = bool(os.environ.get("EDGE_VERBOSE"))
+    total = len(events)
+    for idx, event in enumerate(events, 1):
+        if verbose:
+            print(f"[{idx}/{total}] {event.symbol} {event.report_date}",
+                  file=sys.stderr, flush=True)
         if repo.exists(event.symbol, event.report_date):
             continue
         try:
