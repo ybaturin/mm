@@ -54,7 +54,8 @@ def _load_universe() -> list[str]:
     if env:
         symbols = [s.strip().upper() for s in env.split(",") if s.strip()]
     else:
-        with open("config/universe.toml", "rb") as f:
+        path = os.environ.get("EDGE_UNIVERSE_FILE", "config/universe.toml")
+        with open(path, "rb") as f:
             symbols = tomllib.load(f)["symbols"]
     etfs = {"SPY", "QQQ", "IWM", "DIA", "VOO", "VTI"}
     symbols = [s for s in symbols if s not in etfs]

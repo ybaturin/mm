@@ -1,0 +1,24 @@
+# config/edge_universe.toml — wider liquid large-cap universe for the edge measurer pilot.
+# ~100 liquid US names spread across sectors so earnings land across the Feb-May window.
+# Large-cap first (best transcript coverage); mid/small-cap (stronger PEAD) is a later step.
+symbols = [
+    # Tech / semis
+    "AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM", "ADBE", "AMD", "INTC", "CSCO",
+    "QCOM", "TXN", "IBM", "NOW", "INTU", "AMAT", "MU", "ADI", "LRCX", "KLAC",
+    "PANW", "SNPS", "CDNS", "ACN", "ADP",
+    # Communication / internet
+    "GOOGL", "META", "AMZN", "NFLX", "DIS", "CMCSA", "TMUS", "VZ", "T",
+    # Consumer discretionary / staples
+    "TSLA", "HD", "LOW", "NKE", "MCD", "SBUX", "BKNG", "TGT", "WMT", "COST",
+    "PG", "KO", "PEP", "PM", "MO", "MDLZ", "CL", "F", "GM",
+    # Financials
+    "JPM", "BAC", "WFC", "GS", "MS", "C", "AXP", "BLK", "SCHW", "SPGI",
+    "V", "MA", "PYPL",
+    # Health care
+    "UNH", "JNJ", "LLY", "ABBV", "MRK", "PFE", "TMO", "ABT", "DHR", "BMY",
+    "AMGN", "GILD", "CVS", "MDT", "ISRG",
+    # Industrials
+    "BA", "CAT", "GE", "HON", "UPS", "RTX", "LMT", "DE", "UNP", "MMM",
+    # Energy / materials / utilities
+    "XOM", "CVX", "COP", "SLB", "LIN", "NEE",
+]
