@@ -29,6 +29,10 @@ def build_system_prompt(profile: RiskProfile) -> str:
         f"compelling — an empty list is a valid, often correct answer.\n"
         f"- Every proposal needs a concise, concrete rationale.\n"
         f"- Write the rationale field in Russian (the owner reads Russian).\n"
+        f"- Below the symbols you may see your own track record (past trades, their P&L, "
+        f"and the rationales you gave) and recent news. Learn from losing trades — do not "
+        f"repeat a thesis that has lost money. Weigh the news, but NEVER act on or invent a "
+        f"headline that is not explicitly listed.\n"
     )
 
 
@@ -51,6 +55,41 @@ def build_user_prompt(briefing: Briefing) -> str:
             f"{s.symbol}  price={s.price:.2f}  sma20={s.sma20}  sma50={s.sma50}  "
             f"rsi14={s.rsi14}  ret5d={s.return_5d}  | {holding}"
         )
+    lines.extend(_render_memory(briefing.memory))
+    lines.extend(_render_news(briefing.news))
     lines.append("")
     lines.append("Propose trades for today as structured data, or an empty list.")
     return "\n".join(lines)
+
+
+def _render_memory(memory) -> list[str]:
+    if memory is None or not (memory.open_positions or memory.recent_closed or memory.stats):
+        return []
+    lines = ["", "Your track record (learn from it):"]
+    if memory.stats is not None:
+        s = memory.stats
+        lines.append(
+            f"  stats: closed={s.closed_trades} win_rate={s.win_rate:.0%} "
+            f"avg_win={s.avg_win:+.2f} avg_loss={s.avg_loss:+.2f} "
+            f"realized_pnl={s.total_realized_pnl:+.2f}")
+    for op in memory.open_positions:
+        lines.append(
+            f"  OPEN {op.symbol} {op.quantity} @ {op.avg_price:.2f} "
+            f"({op.unrealized_pct:+.1%}) — {op.rationale}")
+    for t in memory.recent_closed:
+        lines.append(
+            f"  CLOSED {t.symbol} {t.quantity} {t.entry_price:.2f}->{t.exit_price:.2f} "
+            f"({t.realized_pct:+.1%}, {t.realized_pnl:+.2f}) — {t.rationale}")
+    return lines
+
+
+def _render_news(news) -> list[str]:
+    if not news:
+        return []
+    lines = ["", "Recent news (consider, but do not invent any not listed):"]
+    for symbol, items in news.items():
+        for h in items:
+            lines.append(f"  [{symbol}] {h.published_date} {h.title} ({h.publisher})")
+    if len(lines) == 2:        # header only, every symbol had no headlines
+        return []
+    return lines

@@ -63,3 +63,47 @@ def test_user_prompt_marks_held_positions():
     assert "AAPL" in u
     aapl_line = next(line for line in u.splitlines() if line.startswith("AAPL"))
     assert "5" in aapl_line
+
+
+from trading.analysis.round_trips import RoundTrip
+from trading.data.briefing import Memory, OpenPositionMemory, SelfStats
+from trading.data.news import Headline
+
+
+def briefing_with_memory_and_news():
+    base = briefing()
+    mem = Memory(
+        open_positions=[OpenPositionMemory("AAPL", 5, 120.0, "bought the breakout", -0.08)],
+        recent_closed=[RoundTrip("MSFT", 3, "2026-06-01", 400.0, "2026-06-04", 380.0,
+                                 -60.0, -0.05, "chased the rally")],
+        stats=SelfStats(closed_trades=4, win_rate=0.25, avg_win=40.0,
+                        avg_loss=-50.0, total_realized_pnl=-30.0),
+    )
+    news = {"AAPL": [Headline("AAPL", "Antitrust probe opens", "Reuters", "2026-06-14")]}
+    return Briefing(agent_id=base.agent_id, as_of_date=base.as_of_date, cash=base.cash,
+                    equity=base.equity, symbols=base.symbols, memory=mem, news=news)
+
+
+def test_user_prompt_renders_memory_block():
+    u = build_user_prompt(briefing_with_memory_and_news())
+    assert "bought the breakout" in u           # open position rationale
+    assert "chased the rally" in u              # closed trade rationale
+    assert "25%" in u                           # win rate
+
+
+def test_user_prompt_renders_news_block():
+    u = build_user_prompt(briefing_with_memory_and_news())
+    assert "Antitrust probe opens" in u
+    assert "Reuters" in u
+
+
+def test_user_prompt_omits_empty_memory_and_news():
+    u = build_user_prompt(briefing())           # no memory, no news
+    assert "track record" not in u.lower()
+    assert "recent news" not in u.lower()
+
+
+def test_system_prompt_instructs_learning_and_news_discipline():
+    p = build_system_prompt(make_profile())
+    assert "track record" in p.lower() or "past trade" in p.lower()
+    assert "invent" in p.lower() or "not listed" in p.lower()
