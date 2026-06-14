@@ -82,3 +82,37 @@ def test_equity_snapshot_upserts_by_date(repo):
     repo.record_equity_snapshot("moderate", "2026-06-16", 4990.0)  # same date overwrites
     curve = repo.equity_curve("moderate")
     assert curve == [("2026-06-15", 5010.0), ("2026-06-16", 4990.0)]
+
+
+def test_record_decision_persists_forecast_columns(repo):
+    p = TradeProposal("aggressive", "AAPL", Intent.OPEN_LONG, 10, 185.0, 176.0,
+                      "rebound", target_price=200.0, horizon_days=14)
+    repo.record_decision("2026-06-14T13:00:00Z", p,
+                         GuardrailDecision(Outcome.NEEDS_CONFIRMATION, 10, []))
+    row = repo.decisions_for("aggressive")[0]
+    assert row["target_price"] == 200.0
+    assert row["horizon_days"] == 14
+
+
+def test_migrate_db_adds_columns_to_legacy_decisions():
+    import sqlite3
+
+    from trading.persistence.schema import migrate_db
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    # Legacy decisions table without the forecast columns.
+    conn.execute("""
+        CREATE TABLE decisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, agent_id TEXT, symbol TEXT,
+            intent TEXT, proposed_qty INTEGER, reference_price REAL, stop_loss_price REAL,
+            rationale TEXT, outcome TEXT, final_qty INTEGER, reasons TEXT)
+    """)
+    conn.execute("INSERT INTO decisions (agent_id, reasons) VALUES ('a', '[]')")
+    conn.commit()
+    migrate_db(conn)
+    migrate_db(conn)   # idempotent: second call must not raise
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(decisions)")}
+    assert "target_price" in cols and "horizon_days" in cols
+    # Existing row preserved.
+    assert conn.execute("SELECT agent_id FROM decisions").fetchone()[0] == "a"

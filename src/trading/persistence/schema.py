@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS decisions (
     rationale        TEXT NOT NULL,
     outcome          TEXT NOT NULL,        -- Outcome value
     final_qty        INTEGER NOT NULL,
-    reasons          TEXT NOT NULL         -- JSON array of strings
+    reasons          TEXT NOT NULL,        -- JSON array of strings
+    target_price     REAL,                 -- forecast at decision time (nullable)
+    horizon_days     INTEGER               -- forecast horizon in days (nullable)
 );
 
 CREATE TABLE IF NOT EXISTS fills (
@@ -78,6 +80,22 @@ CREATE TABLE IF NOT EXISTS run_state (
 """
 
 
+def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def migrate_db(conn: sqlite3.Connection) -> None:
+    """Add columns introduced after the first release. The SQLite file is the whole
+    track record, so we ALTER in place rather than recreate. Idempotent."""
+    cols = _columns(conn, "decisions")
+    if "target_price" not in cols:
+        conn.execute("ALTER TABLE decisions ADD COLUMN target_price REAL")
+    if "horizon_days" not in cols:
+        conn.execute("ALTER TABLE decisions ADD COLUMN horizon_days INTEGER")
+    conn.commit()
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
+    migrate_db(conn)
     conn.commit()

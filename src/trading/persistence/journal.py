@@ -21,14 +21,16 @@ class JournalRepository:
             """
             INSERT INTO decisions (
                 ts, agent_id, symbol, intent, proposed_qty, reference_price,
-                stop_loss_price, rationale, outcome, final_qty, reasons
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                stop_loss_price, rationale, outcome, final_qty, reasons,
+                target_price, horizon_days
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 ts, proposal.agent_id, proposal.symbol, proposal.intent.value,
                 proposal.quantity, proposal.reference_price, proposal.stop_loss_price,
                 proposal.rationale, decision.outcome.value, decision.quantity,
                 json.dumps(decision.reasons),
+                proposal.target_price, proposal.horizon_days,
             ),
         )
         self.conn.commit()
