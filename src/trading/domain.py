@@ -37,6 +37,8 @@ class TradeProposal:
     reference_price: float         # price the decision maker believed at proposal time
     stop_loss_price: float | None
     rationale: str
+    target_price: float | None = None     # forecast: where the agent expects price to go
+    horizon_days: int | None = None       # forecast: by when, in calendar days
 
 
 @dataclass(frozen=True)

@@ -37,3 +37,37 @@ def test_to_domain_proposals_allows_null_stop_for_close():
 
 def test_empty_batch_maps_to_empty_list():
     assert to_domain_proposals(ProposalBatch(trades=[]), agent_id="conservative") == []
+
+
+def _batch(**over):
+    base = dict(symbol="AAPL", intent="open_long", quantity=10,
+                reference_price=185.0, stop_loss_price=176.0, rationale="rebound")
+    base.update(over)
+    return ProposalBatch(trades=[ProposedTrade(**base)])
+
+
+def test_forecast_fields_pass_through():
+    p = to_domain_proposals(_batch(target_price=200.0, horizon_days=14), "aggressive")[0]
+    assert p.target_price == 200.0
+    assert p.horizon_days == 14
+
+
+def test_wrong_side_target_is_dropped_for_long():
+    # Target below entry on a long is incoherent — drop it, keep the trade.
+    p = to_domain_proposals(_batch(target_price=170.0, horizon_days=14), "aggressive")[0]
+    assert p.target_price is None
+    assert p.horizon_days is None
+
+
+def test_missing_forecast_is_tolerated():
+    p = to_domain_proposals(_batch(), "aggressive")[0]
+    assert p.target_price is None
+    assert p.horizon_days is None
+
+
+def test_short_forecast_target_below_entry_kept():
+    p = to_domain_proposals(
+        _batch(intent="open_short", reference_price=200.0, stop_loss_price=215.0,
+               target_price=180.0, horizon_days=7), "aggressive")[0]
+    assert p.target_price == 180.0
+    assert p.horizon_days == 7
