@@ -182,10 +182,13 @@ def build_bot():
     from trading.persistence.runlock import RunLock
     from trading.persistence.schema import init_db
     from trading.reporting.telegram import resolve_admin_ids
+    from trading.run import resolve_db_path
 
     token = os.environ["TELEGRAM_BOT_TOKEN"]
     chat_id = os.environ["TELEGRAM_CHAT_ID"]
-    db_path = os.environ.get("DB_PATH", "data/trading.db")
+    # Resolve the DB the same way the run does (mode-tagged), or the bot reads a
+    # different file than the run writes to.
+    db_path = resolve_db_path()
 
     conn = connect(db_path)
     conn.execute("PRAGMA busy_timeout = 5000")    # tolerate the daily run's brief writes
