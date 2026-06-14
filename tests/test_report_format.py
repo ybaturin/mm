@@ -245,13 +245,47 @@ def test_pnl_report_header_shows_benchmark():
 def test_positions_show_target_and_path():
     rep = PositionsReport(
         {"aggressive": [PositionLine("aggressive", "IWM", 3, 292.95, 298.10, 15.45,
-                                     target_price=315.0, path_pct=0.43, days_left=9)]},
+                                     target_price=315.0, path_pct=0.43, days_left=9,
+                                     horizon_days=14)]},
         15.45, 894.30)
     msg = format_positions(rep)
     assert "IWM" in msg
     assert "315" in msg
     assert "43%" in msg
     assert "9" in msg
+
+
+def test_positions_show_expected_profit_and_horizon():
+    rep = PositionsReport(
+        {"aggressive": [PositionLine("aggressive", "IWM", 3, 292.95, 298.10, 15.45,
+                                     target_price=315.0, path_pct=0.43, days_left=9,
+                                     horizon_days=14)]},
+        15.45, 894.30)
+    msg = format_positions(rep)
+    assert "прогноз" in msg
+    assert "+7.5%" in msg                 # (315-292.95)/292.95
+    assert "+66$" in msg                  # 3 * (315-292.95) ≈ 66
+    assert "недели" in msg                # horizon ~2 недели
+
+
+def test_positions_without_forecast_omit_target_line():
+    rep = PositionsReport(
+        {"moderate": [PositionLine("moderate", "DIA", 1, 513.06, 513.06, 0.0)]},
+        0.0, 513.06)
+    msg = format_positions(rep)
+    assert "прогноз" not in msg
+    assert "🎯" not in msg
+
+
+def test_positions_show_invested_and_free():
+    rep = PositionsReport(
+        {"moderate": [PositionLine("moderate", "DIA", 1, 513.06, 513.06, 0.0)]},
+        0.0, 513.06, portfolio_cash=4286.94, per_agent_cash={"moderate": 4286.94})
+    msg = format_positions(rep)
+    assert "вложено" in msg
+    assert "свободно" in msg
+    assert "всего" in msg
+    assert "4,800" in msg            # 513 invested + 4,287 free ≈ 4,800 total
 
 
 def test_format_retro_reports_forecast_vs_actual():

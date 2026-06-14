@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Callable
 
@@ -110,42 +110,50 @@ class PositionLine:
     target_price: float | None = None
     path_pct: float | None = None
     days_left: int | None = None
+    horizon_days: int | None = None
 
 
 @dataclass(frozen=True)
 class PositionsReport:
     per_agent: dict[str, list[PositionLine]]
     portfolio_unrealized: float
-    portfolio_market_value: float
+    portfolio_market_value: float          # money invested (market value of holdings)
+    portfolio_cash: float = 0.0            # free cash across all agents
+    per_agent_cash: dict[str, float] = field(default_factory=dict)
 
 
 def positions_report(accounts: AccountRepository, agent_ids: list[str],
                      price_fn: Callable[[str], float],
                      theses=None, today: str | None = None) -> PositionsReport:
     per_agent: dict[str, list[PositionLine]] = {}
+    per_agent_cash: dict[str, float] = {}
     port_unreal = 0.0
     port_mv = 0.0
+    port_cash = 0.0
     for aid in agent_ids:
         state = accounts.get_state(aid)
         lines: list[PositionLine] = []
         forecasts = theses.all_for(aid) if theses is not None else {}
         if state is not None:
+            per_agent_cash[aid] = state.cash
+            port_cash += state.cash
             for p in state.positions:
                 price = price_fn(p.symbol)
                 unreal = (price - p.avg_price) * p.quantity
-                tgt = path = left = None
+                tgt = path = left = horizon = None
                 row = forecasts.get(p.symbol)
                 if row is not None:
                     tgt = row["target_price"]
+                    horizon = row["horizon_days"]
                     path = path_to_target(row["entry_price"], price, row["target_price"])
                     if today is not None:
                         left = days_left(row["opened_on"], row["horizon_days"], today)
                 lines.append(PositionLine(aid, p.symbol, p.quantity, p.avg_price,
-                                          price, unreal, tgt, path, left))
+                                          price, unreal, tgt, path, left, horizon))
                 port_unreal += unreal
                 port_mv += price * p.quantity
         per_agent[aid] = lines
-    return PositionsReport(per_agent, port_unreal, port_mv)
+    return PositionsReport(per_agent, port_unreal, port_mv, port_cash, per_agent_cash)
 
 
 @dataclass(frozen=True)

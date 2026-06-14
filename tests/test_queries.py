@@ -83,6 +83,15 @@ def test_positions_report_values_long_and_short(accounts):
     assert rep.portfolio_unrealized == pytest.approx(150.0)
 
 
+def test_positions_report_includes_cash(accounts):
+    accounts.save_state(AgentState(
+        "m", cash=1500.0, positions=[Position("AAPL", 10, 200.0)]))
+    rep = positions_report(accounts, ["m"], lambda s: 210.0)
+    assert rep.portfolio_cash == 1500.0
+    assert rep.per_agent_cash["m"] == 1500.0
+    assert rep.portfolio_market_value == 2100.0    # 10 * 210
+
+
 def test_positions_report_empty_agent(accounts):
     accounts.save_state(AgentState("flat", cash=5000.0, positions=[]))
     rep = positions_report(accounts, ["flat"], lambda s: 1.0)

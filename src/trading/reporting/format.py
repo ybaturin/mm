@@ -200,21 +200,39 @@ def format_pnl_report(rep: PnlReport) -> str:
 
 
 def format_positions(rep: PositionsReport) -> str:
-    head = (f"📦 <b>Позиции</b> · нереализ. {pnl_color(rep.portfolio_unrealized)} "
-            f"{money_signed(rep.portfolio_unrealized)}")
+    total = rep.portfolio_market_value + rep.portfolio_cash
+    head = (f"📦 <b>Позиции</b>\n"
+            f"💼 вложено ${rep.portfolio_market_value:,.0f} · свободно ${rep.portfolio_cash:,.0f} · "
+            f"всего ${total:,.0f}\n"
+            f"нереализ. {pnl_color(rep.portfolio_unrealized)} {money_signed(rep.portfolio_unrealized)}")
     blocks = [head]
     for agent_id, lines in rep.per_agent.items():
         blocks.append(_group_header(agent_id))
+        invested = sum(l.current_price * l.quantity for l in lines)
+        free = rep.per_agent_cash.get(agent_id, 0.0)
+        blocks.append(f"💼 вложено ${invested:,.0f} · свободно ${free:,.0f}")
         if not lines:
             blocks.append("позиций нет")
             continue
         for l in lines:
             side = "LONG" if l.quantity > 0 else "SHORT"
             blocks.append(f"<b>{html_escape(l.symbol)}</b> · {side} {abs(l.quantity)}")
-            row2 = f"вход {l.avg_price:,.2f} · сейчас {l.current_price:,.2f}"
+            blocks.append(f"вход {l.avg_price:,.2f} · сейчас {l.current_price:,.2f}")
+
+            # Forecast line: what the agent expected at purchase (target, profit, horizon).
             if l.target_price is not None:
-                row2 += f" · цель {l.target_price:,.2f}"
-            blocks.append(row2)
+                qty = abs(l.quantity)
+                if l.quantity < 0:          # short: gain as price falls to target
+                    exp_pct = (l.avg_price - l.target_price) / l.avg_price if l.avg_price else 0.0
+                    exp_profit = (l.avg_price - l.target_price) * qty
+                else:
+                    exp_pct = (l.target_price - l.avg_price) / l.avg_price if l.avg_price else 0.0
+                    exp_profit = (l.target_price - l.avg_price) * qty
+                fc = f"🎯 цель {l.target_price:,.2f} · прогноз {exp_pct:+.1%} (≈ {money_signed(exp_profit)})"
+                if l.horizon_days is not None:
+                    fc += f" за {human_horizon(l.horizon_days)}"
+                blocks.append(fc)
+
             tail = f"{pnl_color(l.unrealized_pnl)} {money_signed(l.unrealized_pnl)}"
             extras = []
             if l.path_pct is not None:
