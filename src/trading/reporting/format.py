@@ -245,14 +245,14 @@ def format_trades(rep: TradesReport) -> str:
         by_agent.setdefault(r.agent_id, []).append(r)
     blocks = ["🧾 <b>Последние сделки</b>"]
     for aid, rows in by_agent.items():
-        table = mono_table(
-            [[f"{r.ts[8:10]}.{r.ts[5:7]}",                              # DD.MM from ISO ts
-              (f"+{r.quantity}" if r.intent in _SIGNED_BUYS else f"−{r.quantity}"),
-              r.symbol, f"{r.price:,.2f}"] for r in rows],
-            aligns="lllr",
-        )
+        # A header row goes first so Telegram's code-block </> copy button overlaps the
+        # labels, not the data on the first trade row.
+        table_rows = [["дата", "к-во", "тикер", "цена"]]
+        table_rows += [[f"{r.ts[8:10]}.{r.ts[5:7]}",                    # DD.MM from ISO ts
+                        (f"+{r.quantity}" if r.intent in _SIGNED_BUYS else f"−{r.quantity}"),
+                        r.symbol, f"{r.price:,.2f}"] for r in rows]
         blocks.append(_group_header(aid))
-        blocks.append(table)
+        blocks.append(mono_table(table_rows, aligns="lllr"))
     return "\n".join(blocks) + "\n\n+N — купил, −N — продал"
 
 

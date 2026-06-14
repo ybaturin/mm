@@ -229,6 +229,7 @@ def test_trades_group_by_agent_and_use_signed_qty():
     assert "+3" in msg          # buy -> positive
     assert "-1" in msg or "−1" in msg   # sell -> negative
     assert "<pre>" in msg       # monospace table
+    assert "тикер" in msg       # header row (keeps the </> copy button off the data)
 
 
 def test_pnl_report_header_shows_benchmark():
