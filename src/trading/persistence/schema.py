@@ -72,6 +72,17 @@ CREATE TABLE IF NOT EXISTS freezes (
     ts      TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS theses (
+    agent_id      TEXT NOT NULL,
+    symbol        TEXT NOT NULL,
+    entry_price   REAL NOT NULL,
+    target_price  REAL NOT NULL,
+    horizon_days  INTEGER NOT NULL,
+    opened_on     TEXT NOT NULL,        -- YYYY-MM-DD
+    rationale     TEXT NOT NULL,
+    PRIMARY KEY (agent_id, symbol)
+);
+
 CREATE TABLE IF NOT EXISTS run_state (
     scope   TEXT PRIMARY KEY,    -- 'GLOBAL' (one run at a time)
     active  INTEGER NOT NULL,    -- 1 = a daily cycle is in progress
