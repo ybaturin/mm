@@ -69,6 +69,8 @@ def build_briefing(
     source: MarketDataSource,
     as_of_date: str,
     lookback_days: int = 60,
+    journal=None,
+    news_source=None,
 ) -> Briefing:
     """Assemble the agent-facing snapshot: cash/equity + per-symbol price & indicators.
 
@@ -96,10 +98,22 @@ def build_briefing(
             held_avg_price=position.avg_price if position else None,
         ))
 
+    memory = None
+    if journal is not None:
+        from trading.analysis.memory import build_memory
+        memory = build_memory(journal, state.agent_id, state.positions, prices)
+
+    news: dict = {}
+    if news_source is not None:
+        from trading.data.news import collect_news
+        news = collect_news(news_source, symbols, as_of_date)
+
     return Briefing(
         agent_id=state.agent_id,
         as_of_date=as_of_date,
         cash=state.cash,
         equity=state.equity(prices),
         symbols=briefs,
+        memory=memory,
+        news=news,
     )

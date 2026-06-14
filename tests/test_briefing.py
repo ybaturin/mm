@@ -71,3 +71,41 @@ def test_build_briefing_reports_cash_and_equity():
     assert briefing.cash == 2000.0
     # equity = cash + 5 * last price 159 = 2000 + 795 = 2795
     assert briefing.equity == pytest.approx(2795.0)
+
+
+from trading.data.news import FakeNews, Headline
+from trading.persistence.db import connect
+from trading.persistence.journal import JournalRepository
+from trading.persistence.schema import init_db
+
+
+def test_build_briefing_populates_news_when_source_given():
+    source = FakeMarketDataSource({"AAPL": ramp(100, 60)})
+    state = AgentState(agent_id="moderate", cash=2000.0, positions=[],
+                       peak_equity=5000.0, equity_day_start=5000.0)
+    news_source = FakeNews({"AAPL": [Headline("AAPL", "Big news", "Reuters", "2026-06-13")]})
+    briefing = build_briefing(state, universe=["AAPL"], source=source,
+                              as_of_date="2026-12-31", news_source=news_source)
+    assert briefing.news["AAPL"][0].title == "Big news"
+
+
+def test_build_briefing_populates_memory_when_journal_given():
+    conn = connect(":memory:")
+    init_db(conn)
+    journal = JournalRepository(conn)
+    source = FakeMarketDataSource({"AAPL": ramp(100, 60)})
+    state = AgentState(agent_id="moderate", cash=2000.0, positions=[],
+                       peak_equity=5000.0, equity_day_start=5000.0)
+    briefing = build_briefing(state, universe=["AAPL"], source=source,
+                              as_of_date="2026-12-31", journal=journal)
+    assert briefing.memory is not None
+    assert briefing.memory.recent_closed == []      # cold start
+
+
+def test_build_briefing_defaults_have_no_memory_or_news():
+    source = FakeMarketDataSource({"AAPL": ramp(100, 60)})
+    state = AgentState(agent_id="moderate", cash=2000.0, positions=[],
+                       peak_equity=5000.0, equity_day_start=5000.0)
+    briefing = build_briefing(state, universe=["AAPL"], source=source, as_of_date="2026-12-31")
+    assert briefing.memory is None
+    assert briefing.news == {}
