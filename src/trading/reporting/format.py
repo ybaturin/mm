@@ -213,7 +213,9 @@ def format_positions(rep: PositionsReport) -> str:
             continue
         # Aligned monospace table. A header row goes first so Telegram's </> copy button
         # overlaps the labels, not the data. Direction is the sign of the qty column.
-        table = [["тикер", "кол", "цена", "P&L", "цель", "дн"]]
+        # NB: no '&' in any cell — html_escape turns it into '&amp;', whose 5-char length
+        # would mis-size the column (Telegram renders it as one char), so columns drift.
+        table = [["тикер", "кол", "цена", "цель", "PnL", "дн"]]
         for l in lines:
             tgt = f"{l.target_price:,.0f}" if l.target_price is not None else "—"
             if l.days_left is None:
@@ -223,7 +225,7 @@ def format_positions(rep: PositionsReport) -> str:
             else:
                 dn = str(l.days_left)
             table.append([l.symbol, f"{l.quantity:+d}", f"{l.current_price:,.2f}",
-                          money_signed(l.unrealized_pnl), tgt, dn])
+                          tgt, money_signed(l.unrealized_pnl), dn])
         blocks.append(mono_table(table, aligns="lrrrrr"))
     return "\n".join(blocks) + "\n\n+ лонг · − шорт · цель — целевая цена · дн — дней до срока"
 
