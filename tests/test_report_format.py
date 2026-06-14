@@ -118,8 +118,9 @@ def test_format_positions_marks_direction_and_pnl():
         100.0, 2100.0)
     msg = format_positions(rep)
     assert "AAPL" in msg
-    assert "LONG" in msg
-    assert "+100" in msg or "100.00" in msg
+    assert "+10" in msg          # signed qty conveys direction (long)
+    assert "+100" in msg         # P&L
+    assert "<pre>" in msg        # aligned monospace table
 
 
 def test_format_positions_empty_agent_says_so():
@@ -179,15 +180,14 @@ def test_money_signed_drops_sign_when_flat():
     assert money_signed(0.0) == "0$"
 
 
-def test_positions_no_code_block_and_no_arrows():
+def test_positions_table_has_no_arrows():
     rep = PositionsReport(
         {"moderate": [PositionLine("moderate", "DIA", 1, 513.06, 513.06, 0.0)]},
         0.0, 513.06)
     msg = format_positions(rep)
-    assert "<pre>" not in msg          # plain text, no monospace box that overflows on mobile
+    assert "<pre>" in msg              # aligned monospace table
     assert "→" not in msg              # arrows hurt readability
-    assert "⚪" in msg                 # flat P&L is neutral
-    assert "0$" in msg
+    assert "0$" in msg                 # flat P&L shown unsigned
 
 
 def test_mono_table_aligns_columns_and_wraps_in_pre():
@@ -250,32 +250,19 @@ def test_positions_show_target_and_path():
         15.45, 894.30)
     msg = format_positions(rep)
     assert "IWM" in msg
-    assert "315" in msg
-    assert "43%" in msg
-    assert "9" in msg
+    assert "315" in msg          # target price column
+    assert "9" in msg            # days-left column
+    assert "<pre>" in msg        # aligned table
+    assert "цель" in msg         # forecast columns labelled
 
 
-def test_positions_show_expected_profit_and_horizon():
-    rep = PositionsReport(
-        {"aggressive": [PositionLine("aggressive", "IWM", 3, 292.95, 298.10, 15.45,
-                                     target_price=315.0, path_pct=0.43, days_left=9,
-                                     horizon_days=14)]},
-        15.45, 894.30)
-    msg = format_positions(rep)
-    assert "🎯" in msg
-    assert "315" in msg                   # target price
-    assert "+7.5%" in msg                 # (315-292.95)/292.95
-    assert "+66$" in msg                  # 3 * (315-292.95) ≈ 66
-    assert "9" in msg                     # days left
-
-
-def test_positions_without_forecast_omit_target_line():
+def test_positions_without_forecast_show_dash():
     rep = PositionsReport(
         {"moderate": [PositionLine("moderate", "DIA", 1, 513.06, 513.06, 0.0)]},
         0.0, 513.06)
     msg = format_positions(rep)
-    assert "прогноз" not in msg
-    assert "🎯" not in msg
+    assert "DIA" in msg
+    assert "—" in msg            # no forecast -> dashes in the цель/дн columns
 
 
 def test_positions_show_invested_and_free():

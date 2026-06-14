@@ -211,32 +211,21 @@ def format_positions(rep: PositionsReport) -> str:
         if not lines:
             blocks.append("позиций нет")
             continue
+        # Aligned monospace table. A header row goes first so Telegram's </> copy button
+        # overlaps the labels, not the data. Direction is the sign of the qty column.
+        table = [["тикер", "кол", "цена", "P&L", "цель", "дн"]]
         for l in lines:
-            side = "LONG" if l.quantity > 0 else "SHORT"
-            pct = (l.unrealized_pnl / (l.avg_price * abs(l.quantity))
-                   if l.avg_price and l.quantity else 0.0)
-            line = (f"{pnl_color(l.unrealized_pnl)} <b>{html_escape(l.symbol)}</b> "
-                    f"{side} ×{abs(l.quantity)} @ {l.current_price:,.2f} · "
-                    f"{money_signed(l.unrealized_pnl)} ({pct:+.1%})")
-            if l.target_price is not None:
-                qty = abs(l.quantity)
-                if l.quantity < 0:          # short: gain as price falls to target
-                    exp_profit = (l.avg_price - l.target_price) * qty
-                    exp_pct = (l.avg_price - l.target_price) / l.avg_price if l.avg_price else 0.0
-                else:
-                    exp_profit = (l.target_price - l.avg_price) * qty
-                    exp_pct = (l.target_price - l.avg_price) / l.avg_price if l.avg_price else 0.0
-                fc = f"🎯 {l.target_price:,.0f} · {money_signed(exp_profit)} ({exp_pct:+.1%})"
-                bits = []
-                if l.path_pct is not None:
-                    bits.append(f"{l.path_pct:.0%} пути")
-                if l.days_left is not None:
-                    bits.append("просрочено" if l.days_left < 0 else f"ост {l.days_left}д")
-                if bits:
-                    fc += " · " + ", ".join(bits)
-                line += "\n   " + fc
-            blocks.append(line)
-    return "\n".join(blocks)
+            tgt = f"{l.target_price:,.0f}" if l.target_price is not None else "—"
+            if l.days_left is None:
+                dn = "—"
+            elif l.days_left < 0:
+                dn = "проср"
+            else:
+                dn = str(l.days_left)
+            table.append([l.symbol, f"{l.quantity:+d}", f"{l.current_price:,.2f}",
+                          money_signed(l.unrealized_pnl), tgt, dn])
+        blocks.append(mono_table(table, aligns="lrrrrr"))
+    return "\n".join(blocks) + "\n\n+ лонг · − шорт · цель — целевая цена · дн — дней до срока"
 
 
 def format_status(rep: StatusReport) -> str:
