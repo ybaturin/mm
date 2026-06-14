@@ -40,6 +40,7 @@ def run_cycle(
     panel=None,
     notifier=None,
     news_source=None,
+    theses=None,
 ) -> AgentState:
     """Run one agent's full daily cycle. The keystone that connects every component.
 
@@ -58,6 +59,12 @@ def run_cycle(
 
     def equity_now() -> float:
         return broker.cash() + sum(p.quantity * prices[p.symbol] for p in broker.positions())
+
+    def _position_for(symbol: str):
+        for p in broker.positions():
+            if p.symbol == symbol:
+                return p
+        return None
 
     prev = accounts.get_state(agent_id)
     start_equity = equity_now()
@@ -94,6 +101,28 @@ def run_cycle(
         if notifier is not None:
             from trading.reporting.format import format_fill
             notifier.notify(format_fill(agent_id, fill))
+
+        if theses is not None:
+            after = _position_for(proposal.symbol)
+            if proposal.intent.is_opening and proposal.target_price is not None \
+                    and proposal.horizon_days is not None:
+                # Open or add-to: store/refresh the forecast, entry synced to the
+                # position's (possibly averaged) cost.
+                entry = after.avg_price if after is not None else fill.price
+                theses.upsert(agent_id, proposal.symbol, entry, proposal.target_price,
+                              proposal.horizon_days, as_of_date, proposal.rationale)
+            elif not proposal.intent.is_opening and (after is None or after.quantity == 0):
+                # Full close: emit a retro from the stored thesis, then clear it.
+                row = theses.get(agent_id, proposal.symbol)
+                if row is not None and notifier is not None:
+                    from trading.reporting.format import format_retro
+                    notifier.notify(format_retro(
+                        agent_id=agent_id, symbol=proposal.symbol, quantity=fill.quantity,
+                        entry_price=row["entry_price"], exit_price=fill.price,
+                        target_price=row["target_price"], horizon_days=row["horizon_days"],
+                        opened_on=row["opened_on"], closed_on=as_of_date,
+                        is_short=proposal.intent.is_short_side))
+                theses.delete(agent_id, proposal.symbol)
 
         # Transmit the protective stop to the broker so the position is guarded
         # between daily runs — not just journaled. Guardrails guarantee a valid

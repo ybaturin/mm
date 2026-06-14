@@ -14,6 +14,20 @@ from trading.persistence.journal import JournalRepository
 from trading.persistence.schema import init_db
 
 
+class _StaticStrategy:
+    """Returns a fixed proposal list, ignoring the briefing — for deterministic wiring tests."""
+
+    def __init__(self, proposals):
+        self._proposals = proposals
+
+    def propose(self, briefing, profile):
+        return self._proposals
+
+
+def flat_bars(n=60, price=100.0):
+    return [Bar(f"2026-05-{i+1:02d}", price, price, price, price, 1000) for i in range(n)]
+
+
 def make_profile(**o):
     base = dict(name="moderate", budget=5000.0, max_position_pct=0.25, min_positions=5,
                 allow_shorts=False, stop_loss_pct=0.10, max_trades_per_day=4,
@@ -171,3 +185,42 @@ def test_run_cycle_passes_news_into_briefing(tmp_path):
 
     assert captured["briefing"].news["AAPL"][0].title == "News!"
     assert captured["briefing"].memory is not None     # journal always wired now
+
+
+def test_cycle_writes_thesis_on_open_and_emits_retro_on_close(repos):
+    from trading.domain import Intent, TradeProposal
+    from trading.persistence.theses import ThesisStore
+    from trading.reporting.notifier import FakeNotifier
+
+    accounts, journal = repos
+    theses = ThesisStore(accounts.conn)
+    profile = make_profile()
+    broker = FakeBroker(cash=profile.budget)
+    source = FakeMarketDataSource({"AAPL": flat_bars()})
+    broker.set_price("AAPL", 100.0)
+
+    # Day 1: open AAPL with a forecast.
+    open_proposal = TradeProposal("moderate", "AAPL", Intent.OPEN_LONG, 5,
+                                  reference_price=100.0, stop_loss_price=95.0,
+                                  rationale="rebound", target_price=120.0, horizon_days=10)
+    run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
+              accounts=accounts, journal=journal, strategy=_StaticStrategy([open_proposal]),
+              universe=["AAPL"], as_of_date="2026-06-14", ts="2026-06-14T13:00:00Z",
+              confirm=lambda p, d: True, theses=theses)
+    row = theses.get("moderate", "AAPL")
+    assert row is not None and row["target_price"] == 120.0
+    held_qty = {p.symbol: p for p in broker.positions()}["AAPL"].quantity
+
+    # Day 2: fully close at a loss — retro pushed, thesis cleared.
+    broker.set_price("AAPL", 97.6)
+    notifier = FakeNotifier()
+    close_proposal = TradeProposal("moderate", "AAPL", Intent.CLOSE_LONG, held_qty,
+                                   reference_price=97.6, stop_loss_price=None,
+                                   rationale="take profit")
+    run_cycle(agent_id="moderate", profile=profile, broker=broker, source=source,
+              accounts=accounts, journal=journal, strategy=_StaticStrategy([close_proposal]),
+              universe=["AAPL"], as_of_date="2026-06-16", ts="2026-06-16T13:00:00Z",
+              confirm=lambda p, d: True, notifier=notifier, theses=theses)
+
+    assert theses.get("moderate", "AAPL") is None
+    assert any("Закрыта позиция" in m for m in notifier.messages)
