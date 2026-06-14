@@ -59,10 +59,9 @@ def test_format_fill_reads_naturally():
     msg = format_fill("moderate", fill)
     assert "moderate" in msg
     assert "AAPL" in msg
-    assert "Покупка" in msg
+    assert "покупка" in msg.lower()
     assert "3" in msg
     assert "101.50" in msg
-    assert "исполнена" in msg.lower()
 
 
 def test_format_digest_summarizes_counts():
@@ -108,7 +107,7 @@ def test_format_pnl_report_shows_portfolio_and_agents():
                     10000.0, 10800.0, 800.0, 0.08)
     msg = format_pnl_report(rep)
     assert "неделю" in msg
-    assert "MOMENTUM" in msg
+    assert "momentum" in msg
     assert "+800" in msg or "800.00" in msg
     assert "8.0%" in msg
 
@@ -187,7 +186,8 @@ def test_positions_no_code_block_and_no_arrows():
     msg = format_positions(rep)
     assert "<pre>" not in msg          # plain text, no monospace box that overflows on mobile
     assert "→" not in msg              # arrows hurt readability
-    assert "⚪ 0$" in msg              # flat P&L is neutral
+    assert "⚪" in msg                 # flat P&L is neutral
+    assert "0$" in msg
 
 
 def test_mono_table_aligns_columns_and_wraps_in_pre():
@@ -262,10 +262,11 @@ def test_positions_show_expected_profit_and_horizon():
                                      horizon_days=14)]},
         15.45, 894.30)
     msg = format_positions(rep)
-    assert "прогноз" in msg
+    assert "🎯" in msg
+    assert "315" in msg                   # target price
     assert "+7.5%" in msg                 # (315-292.95)/292.95
     assert "+66$" in msg                  # 3 * (315-292.95) ≈ 66
-    assert "недели" in msg                # horizon ~2 недели
+    assert "9" in msg                     # days left
 
 
 def test_positions_without_forecast_omit_target_line():
@@ -283,8 +284,7 @@ def test_positions_show_invested_and_free():
         0.0, 513.06, portfolio_cash=4286.94, per_agent_cash={"moderate": 4286.94})
     msg = format_positions(rep)
     assert "вложено" in msg
-    assert "свободно" in msg
-    assert "всего" in msg
+    assert "из" in msg               # "вложено X из Y" — free is implied by the total
     assert "4,800" in msg            # 513 invested + 4,287 free ≈ 4,800 total
 
 

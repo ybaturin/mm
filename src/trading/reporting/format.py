@@ -131,19 +131,16 @@ def format_confirmation(proposal: TradeProposal, decision: GuardrailDecision) ->
 def format_fill(agent_id: str, fill: Fill) -> str:
     action = _ACTION_RU.get(fill.action.value, fill.action.value)
     notional = fill.quantity * fill.price
-    return (f"✅ Сделка исполнена · {agent_id}\n"
-            f"{action} {fill.quantity} × {fill.symbol} @ ${fill.price:,.2f}  "
-            f"(≈ ${notional:,.0f})")
+    return (f"✅ <b>{html_escape(agent_id)}</b>: {action.lower()} {fill.quantity} × "
+            f"{html_escape(fill.symbol)} @ {fill.price:,.2f} (≈ {notional:,.0f}$)")
 
 
 def format_digest(agent_id: str, date: str, executed: list[str],
                   rejected: int, vetoed: int, declined: int = 0) -> str:
-    body = "сделок нет" if not executed else "\n".join(f"  • {line}" for line in executed)
-    return (
-        f"📊 {agent_id} — {date}\n"
-        f"{body}\n"
-        f"(отклонено guardrails: {rejected}, вето панели: {vetoed}, отклонено вручную: {declined})"
-    )
+    body = "сделок нет" if not executed else " · ".join(executed)
+    skipped = f"  (откл. {rejected} · вето {vetoed} · вручную {declined})" \
+        if (rejected or vetoed or declined) else ""
+    return f"📊 <b>{html_escape(agent_id)}</b> {date}: {body}{skipped}"
 
 
 def format_alert(kind: str, detail: str) -> str:
@@ -153,7 +150,8 @@ def format_alert(kind: str, detail: str) -> str:
 def format_pnl(agent_id: str, start: float, end: float) -> str:
     pnl = end - start
     pct = (pnl / start) if start else 0.0
-    return f"💰 {agent_id}: ${start:,.0f} → ${end:,.2f}  (P&L {pnl:+,.2f}, {pct:+.1%})"
+    return (f"💰 <b>{html_escape(agent_id)}</b>: {end:,.0f}$ · "
+            f"{pnl_color(pnl)} {money_signed(pnl)} ({pct:+.1%})")
 
 
 # Imported at the bottom to keep the top of the file clean; queries.py does not import
@@ -185,74 +183,68 @@ def format_pnl_report(rep: PnlReport) -> str:
     bench = ""
     if rep.benchmark_pct is not None:
         verdict = "обыгрываем" if rep.portfolio_pct >= rep.benchmark_pct else "отстаём"
-        bench = f"   ·   SPY {rep.benchmark_pct:+.1%} — {verdict}"
+        bench = f" · SPY {rep.benchmark_pct:+.1%} ({verdict})"
     head = (f"💰 <b>P&amp;L за {_PERIOD_RU.get(rep.period, rep.period)}</b>\n"
-            f"{pnl_color(rep.portfolio_pnl)} <b>Портфель</b> {money_signed(rep.portfolio_pnl)}  "
+            f"Портфель: {pnl_color(rep.portfolio_pnl)} {money_signed(rep.portfolio_pnl)} "
             f"({rep.portfolio_pct:+.1%}){bench}")
     if not rep.per_agent:
         return head + "\nнет данных"
-    blocks = [head]
+    lines = [head]
     for l in rep.per_agent:
-        blocks.append(_group_header(l.agent_id))
-        blocks.append(f"{pnl_color(l.pnl)}  {money_signed(l.pnl)}   ({l.pct:+.1%})")
-        blocks.append(f"нач. {l.start_equity:,.0f} · тек. {l.end_equity:,.0f}")
-    return "\n".join(blocks)
+        lines.append(f"{pnl_color(l.pnl)} <b>{html_escape(l.agent_id)}</b> "
+                     f"{money_signed(l.pnl)} ({l.pct:+.1%})")
+    return "\n".join(lines)
 
 
 def format_positions(rep: PositionsReport) -> str:
     total = rep.portfolio_market_value + rep.portfolio_cash
-    head = (f"📦 <b>Позиции</b>\n"
-            f"💼 вложено ${rep.portfolio_market_value:,.0f} · свободно ${rep.portfolio_cash:,.0f} · "
-            f"всего ${total:,.0f}\n"
-            f"нереализ. {pnl_color(rep.portfolio_unrealized)} {money_signed(rep.portfolio_unrealized)}")
-    blocks = [head]
+    pnl_tail = (f" · P&amp;L {pnl_color(rep.portfolio_unrealized)} "
+                f"{money_signed(rep.portfolio_unrealized)}") if round(rep.portfolio_unrealized) else ""
+    blocks = [f"📦 <b>Позиции</b> · вложено {rep.portfolio_market_value:,.0f}$ "
+              f"из {total:,.0f}${pnl_tail}"]
     for agent_id, lines in rep.per_agent.items():
-        blocks.append(_group_header(agent_id))
         invested = sum(l.current_price * l.quantity for l in lines)
         free = rep.per_agent_cash.get(agent_id, 0.0)
-        blocks.append(f"💼 вложено ${invested:,.0f} · свободно ${free:,.0f}")
+        blocks.append("")
+        blocks.append(f"<b>{html_escape(agent_id.upper())}</b> · вложено {invested:,.0f}$ "
+                      f"из {invested + free:,.0f}$")
         if not lines:
             blocks.append("позиций нет")
             continue
         for l in lines:
             side = "LONG" if l.quantity > 0 else "SHORT"
-            blocks.append(f"<b>{html_escape(l.symbol)}</b> · {side} {abs(l.quantity)}")
-            blocks.append(f"вход {l.avg_price:,.2f} · сейчас {l.current_price:,.2f}")
-
-            # Forecast line: what the agent expected at purchase (target, profit, horizon).
+            pct = (l.unrealized_pnl / (l.avg_price * abs(l.quantity))
+                   if l.avg_price and l.quantity else 0.0)
+            line = (f"{pnl_color(l.unrealized_pnl)} <b>{html_escape(l.symbol)}</b> "
+                    f"{side} ×{abs(l.quantity)} @ {l.current_price:,.2f} · "
+                    f"{money_signed(l.unrealized_pnl)} ({pct:+.1%})")
             if l.target_price is not None:
                 qty = abs(l.quantity)
                 if l.quantity < 0:          # short: gain as price falls to target
-                    exp_pct = (l.avg_price - l.target_price) / l.avg_price if l.avg_price else 0.0
                     exp_profit = (l.avg_price - l.target_price) * qty
+                    exp_pct = (l.avg_price - l.target_price) / l.avg_price if l.avg_price else 0.0
                 else:
-                    exp_pct = (l.target_price - l.avg_price) / l.avg_price if l.avg_price else 0.0
                     exp_profit = (l.target_price - l.avg_price) * qty
-                fc = f"🎯 цель {l.target_price:,.2f} · прогноз {exp_pct:+.1%} (≈ {money_signed(exp_profit)})"
-                if l.horizon_days is not None:
-                    fc += f" за {human_horizon(l.horizon_days)}"
-                blocks.append(fc)
-
-            tail = f"{pnl_color(l.unrealized_pnl)} {money_signed(l.unrealized_pnl)}"
-            extras = []
-            if l.path_pct is not None:
-                extras.append(f"путь к цели {l.path_pct:.0%}")
-            if l.days_left is not None:
-                extras.append(f"ост. {human_days_left(l.days_left)}")
-            if extras:
-                tail += " · " + " · ".join(extras)
-            blocks.append(tail)
+                    exp_pct = (l.target_price - l.avg_price) / l.avg_price if l.avg_price else 0.0
+                fc = f"🎯 {l.target_price:,.0f} · {money_signed(exp_profit)} ({exp_pct:+.1%})"
+                bits = []
+                if l.path_pct is not None:
+                    bits.append(f"{l.path_pct:.0%} пути")
+                if l.days_left is not None:
+                    bits.append("просрочено" if l.days_left < 0 else f"ост {l.days_left}д")
+                if bits:
+                    fc += " · " + ", ".join(bits)
+                line += "\n   " + fc
+            blocks.append(line)
     return "\n".join(blocks)
 
 
 def format_status(rep: StatusReport) -> str:
     frozen = ("нет" if not rep.freezes
               else "; ".join(f"{scope} — {reason}" for scope, reason in rep.freezes))
-    return (f"📋 Статус\n"
-            f"Портфель: {_money(rep.portfolio_equity)}  "
-            f"(сегодня {rep.today_pnl:+,.2f}, {rep.today_pct:+.1%})\n"
-            f"Открытых позиций: {rep.open_positions_count}\n"
-            f"Заморозки: {frozen}")
+    return (f"📋 <b>Статус</b> · {rep.portfolio_equity:,.0f}$ "
+            f"(сегодня {pnl_color(rep.today_pnl)} {money_signed(rep.today_pnl)}, {rep.today_pct:+.1%})\n"
+            f"Позиций: {rep.open_positions_count} · заморозки: {frozen}")
 
 
 def format_trades(rep: TradesReport) -> str:

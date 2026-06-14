@@ -103,8 +103,8 @@ def test_run_daily_sends_per_trade_fill_and_pnl(env):
               panel=AllowingPanel(), notifier=notifier, accounts=accounts, journal=journal,
               freezes=freezes, universe=universe, as_of_date="2026-06-15", ts="2026-06-15T13:30:00Z")
 
-    assert any("Покупка" in m for m in notifier.messages)   # a per-trade fill notification
-    assert any("P&L" in m for m in notifier.messages)       # a per-agent P&L line
+    assert any("покупка" in m.lower() for m in notifier.messages)   # a per-trade fill notification
+    assert any("💰" in m and "moderate" in m for m in notifier.messages)  # a per-agent P&L line
 
 
 def test_run_daily_sends_aggregate_pnl_total(env):
