@@ -82,6 +82,13 @@ def _mode_tag() -> str:
     return "live" if int(os.environ.get("IBKR_PORT", "4002")) == 4001 else "paper"
 
 
+def resolve_db_path() -> str:
+    """The DB file for the current mode. Mode-tagged so fake/paper/live never commingle;
+    override with DB_PATH. The command bot MUST resolve the path the same way, or it would
+    read a different file than the run writes to."""
+    return os.environ.get("DB_PATH") or f"data/trading-{_mode_tag()}.db"
+
+
 def build_components():
     profiles = load_profiles("config/profiles.toml")
     universe = load_universe("config/universe.toml")
@@ -89,7 +96,7 @@ def build_components():
 
     # Separate the track record by mode so fake/paper/live NEVER commingle. Each gets its
     # own DB file; switching to real money starts a clean ledger. Override with DB_PATH.
-    db_path = os.environ.get("DB_PATH") or f"data/trading-{_mode_tag()}.db"
+    db_path = resolve_db_path()
     os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
     conn = connect(db_path)
     init_db(conn)
