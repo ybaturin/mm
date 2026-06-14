@@ -26,6 +26,22 @@ BROKER=fake STRATEGY=claude NOTIFIER=telegram uv run python -m trading.run
 BROKER=fake STRATEGY=fake NOTIFIER=fake PANEL=off uv run python -m trading.run
 ```
 
+## Edge measurer (pre-trading)
+
+A standalone batch that tests whether deep LLM reading of earnings primary sources
+predicts post-earnings drift, BEFORE risking money. It never touches the trading loop.
+
+```bash
+# One-time pilot (needs FMP_API_KEY — a single paid month, cancel after):
+FMP_API_KEY=... EDGE_CUTOFF=2026-02-01 EDGE_TO=2026-05-31 \
+  uv run python -m trading.edge.run
+```
+
+Lookahead is avoided by only testing earnings dated after the model's knowledge cutoff
+(genuinely out-of-sample) plus a memory-probe filter. Output: information coefficient,
+long-short spread after costs, calibration, and significance vs coin-flip and dumb-PEAD
+benchmarks. Full design: `docs/superpowers/specs/2026-06-14-llm-edge-measurer-design.md`.
+
 ## Deploy (Raspberry Pi or VPS)
 
 1. `cp .env.example .env` and fill in secrets.
