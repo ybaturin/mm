@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from trading.broker.types import Fill
 from trading.domain import Intent, TradeProposal
 from trading.guardrails.engine import GuardrailDecision
@@ -163,34 +165,56 @@ def _delta(pnl: float, pct: float) -> str:
     return f"({pnl:+,.2f}, {pct:+.1%})"
 
 
+def _group_header(agent_id: str) -> str:
+    """Bold, normal-text group header (color/emoji allowed here, unlike inside <pre>)."""
+    return f"━ <b>{html_escape(agent_id.upper())}</b> " + "━" * 18
+
+
+_SIGNED_BUYS = {"open_long", "close_short"}
+
+
 def format_pnl_report(rep: PnlReport) -> str:
-    head = (f"💰 P&L за {_PERIOD_RU.get(rep.period, rep.period)}\n"
-            f"Портфель: {_money(rep.portfolio_start)} → {_money(rep.portfolio_end)}  "
-            f"{_delta(rep.portfolio_pnl, rep.portfolio_pct)}")
+    bench = ""
+    if rep.benchmark_pct is not None:
+        verdict = "обыгрываем" if rep.portfolio_pct >= rep.benchmark_pct else "отстаём"
+        bench = f"   ·   SPY {rep.benchmark_pct:+.1%} — {verdict}"
+    head = (f"💰 <b>P&amp;L за {_PERIOD_RU.get(rep.period, rep.period)}</b>\n"
+            f"{pnl_color(rep.portfolio_pnl)} <b>Портфель</b> {rep.portfolio_pnl:+,.0f}$  "
+            f"({rep.portfolio_pct:+.1%}){bench}")
     if not rep.per_agent:
         return head + "\nнет данных"
-    lines = [f"  • {l.agent_id}: {_money(l.start_equity)} → {_money(l.end_equity)} "
-             f"{_delta(l.pnl, l.pct)}" for l in rep.per_agent]
-    return head + "\n" + "\n".join(lines)
+    blocks = [head]
+    for l in rep.per_agent:
+        blocks.append(_group_header(l.agent_id))
+        blocks.append(f"{pnl_color(l.pnl)}  {l.pnl:+,.0f}$   ({l.pct:+.1%})")
+        blocks.append(mono_table([["нач.", f"{l.start_equity:,.0f}", "→",
+                                    "тек.", f"{l.end_equity:,.0f}"]], aligns="lrllr"))
+    return "\n".join(blocks)
 
 
 def format_positions(rep: PositionsReport) -> str:
-    head = (f"📦 Активные позиции\n"
-            f"Портфель: рыночная стоимость {_money(rep.portfolio_market_value)}, "
-            f"нереализ. P&L {rep.portfolio_unrealized:+,.2f}")
-    blocks = []
+    head = (f"📦 <b>Позиции</b> · нереализ. {pnl_color(rep.portfolio_unrealized)} "
+            f"{rep.portfolio_unrealized:+,.0f}$")
+    blocks = [head]
     for agent_id, lines in rep.per_agent.items():
+        blocks.append(_group_header(agent_id))
         if not lines:
-            blocks.append(f"{agent_id}: позиций нет")
+            blocks.append("позиций нет")
             continue
-        rows = []
         for l in lines:
             side = "LONG" if l.quantity > 0 else "SHORT"
-            rows.append(f"  • {side} {abs(l.quantity)} {l.symbol} "
-                        f"@ {_money(l.avg_price)} → {_money(l.current_price)}  "
-                        f"(P&L {l.unrealized_pnl:+,.2f})")
-        blocks.append(f"{agent_id}:\n" + "\n".join(rows))
-    return head + "\n" + "\n".join(blocks)
+            row = [f"{side} {abs(l.quantity)} {l.symbol}",
+                   f"вход {l.avg_price:,.2f} → {l.current_price:,.2f}"]
+            if l.target_price is not None:
+                row.append(f"цель {l.target_price:,.2f}")
+            blocks.append(mono_table([row], aligns="l" * len(row)))
+            tail = f"{pnl_color(l.unrealized_pnl)} {l.unrealized_pnl:+,.0f}$"
+            if l.path_pct is not None:
+                tail = f"путь к цели {l.path_pct:.0%}   ·   " + tail
+            if l.days_left is not None:
+                tail = f"ост. {human_days_left(l.days_left)}   ·   " + tail
+            blocks.append(tail)
+    return "\n".join(blocks)
 
 
 def format_status(rep: StatusReport) -> str:
@@ -205,7 +229,45 @@ def format_status(rep: StatusReport) -> str:
 
 def format_trades(rep: TradesReport) -> str:
     if not rep.rows:
-        return "🧾 Последние сделки\nсделок нет"
-    lines = [f"  • {r.ts[:10]} {r.agent_id} {intent_label(r.intent)} "
-             f"{r.quantity} {r.symbol} @ {_money(r.price)}" for r in rep.rows]
-    return "🧾 Последние сделки\n" + "\n".join(lines)
+        return "🧾 <b>Последние сделки</b>\nсделок нет"
+    by_agent: dict[str, list] = {}
+    for r in rep.rows:
+        by_agent.setdefault(r.agent_id, []).append(r)
+    blocks = ["🧾 <b>Последние сделки</b>"]
+    for aid, rows in by_agent.items():
+        table = mono_table(
+            [[f"{r.ts[8:10]}.{r.ts[5:7]}",                              # DD.MM from ISO ts
+              (f"+{r.quantity}" if r.intent in _SIGNED_BUYS else f"−{r.quantity}"),
+              r.symbol, f"{r.price:,.2f}"] for r in rows],
+            aligns="lllr",
+        )
+        blocks.append(_group_header(aid))
+        blocks.append(table)
+    return "\n".join(blocks) + "\n\n+N — купил, −N — продал"
+
+
+def format_retro(agent_id: str, symbol: str, quantity: int, entry_price: float,
+                 exit_price: float, target_price: float, horizon_days: int,
+                 opened_on: str, closed_on: str, is_short: bool) -> str:
+    """Pushed when a forecasted position fully closes: forecast vs actual."""
+    if is_short:
+        realized = (entry_price - exit_price) * quantity
+        actual_pct = (entry_price - exit_price) / entry_price if entry_price else 0.0
+        expected_pct = (entry_price - target_price) / entry_price if entry_price else 0.0
+        path = ((entry_price - exit_price) / (entry_price - target_price)
+                if entry_price != target_price else 0.0)
+    else:
+        realized = (exit_price - entry_price) * quantity
+        actual_pct = (exit_price - entry_price) / entry_price if entry_price else 0.0
+        expected_pct = (target_price - entry_price) / entry_price if entry_price else 0.0
+        path = ((exit_price - entry_price) / (target_price - entry_price)
+                if target_price != entry_price else 0.0)
+    used = (date.fromisoformat(closed_on) - date.fromisoformat(opened_on)).days
+    return (
+        f"🏁 <b>Закрыта позиция</b> · {html_escape(agent_id)}\n"
+        f"{html_escape(symbol)} ×{quantity} — итог {pnl_color(realized)} "
+        f"{realized:+,.0f}$ ({actual_pct:+.1%})\n\n"
+        f"<b>Прогноз был:</b>  {expected_pct:+.1%} за {human_horizon(horizon_days)}\n"
+        f"<b>По факту:</b>     {actual_pct:+.1%}, дошли на {max(0.0, path):.0%} пути\n"
+        f"<b>Срок:</b>         закрыто на {used}-й день из ~{horizon_days}"
+    )

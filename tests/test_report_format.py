@@ -108,7 +108,7 @@ def test_format_pnl_report_shows_portfolio_and_agents():
                     10000.0, 10800.0, 800.0, 0.08)
     msg = format_pnl_report(rep)
     assert "неделю" in msg
-    assert "momentum" in msg
+    assert "MOMENTUM" in msg
     assert "+800" in msg or "800.00" in msg
     assert "8.0%" in msg
 
@@ -126,7 +126,7 @@ def test_format_positions_marks_direction_and_pnl():
 def test_format_positions_empty_agent_says_so():
     rep = PositionsReport({"flat": []}, 0.0, 0.0)
     msg = format_positions(rep)
-    assert "flat" in msg
+    assert "FLAT" in msg
     assert "позиций нет" in msg.lower()
 
 
@@ -141,7 +141,7 @@ def test_format_trades_lists_fills():
     rep = TradesReport([TradeLine("2026-06-13T13:30:00Z", "b", "open_short",
                                   "TSLA", 3, 250.0)])
     msg = format_trades(rep)
-    assert "TSLA" in msg and "b" in msg
+    assert "TSLA" in msg and "B" in msg
 
 
 from trading.reporting.format import (
@@ -194,3 +194,53 @@ def test_mono_table_escapes_cells():
 
 def test_format_trades_handles_empty():
     assert "сделок нет" in format_trades(TradesReport([])).lower()
+
+
+from trading.reporting.format import format_retro
+
+
+def test_trades_group_by_agent_and_use_signed_qty():
+    rep = TradesReport([
+        TradeLine("2026-06-14T13:00:00Z", "aggressive", "open_long", "IWM", 3, 292.95),
+        TradeLine("2026-06-13T13:00:00Z", "aggressive", "close_long", "TSLA", 1, 406.43),
+        TradeLine("2026-06-14T13:00:00Z", "moderate", "open_long", "DIA", 1, 513.06),
+    ])
+    msg = format_trades(rep)
+    assert "AGGRESSIVE" in msg.upper()
+    assert "MODERATE" in msg.upper()
+    assert "+3" in msg          # buy -> positive
+    assert "-1" in msg or "−1" in msg   # sell -> negative
+    assert "<pre>" in msg       # monospace table
+
+
+def test_pnl_report_header_shows_benchmark():
+    rep = PnlReport("week",
+                    [PnlLine("aggressive", 13500.0, 13080.0, -420.0, -0.0311)],
+                    13500.0, 13080.0, -420.0, -0.0311, benchmark_pct=0.014)
+    msg = format_pnl_report(rep)
+    assert "SPY" in msg
+    assert "1.4%" in msg
+    assert "🔴" in msg          # negative aggressive P&L colored red
+
+
+def test_positions_show_target_and_path():
+    rep = PositionsReport(
+        {"aggressive": [PositionLine("aggressive", "IWM", 3, 292.95, 298.10, 15.45,
+                                     target_price=315.0, path_pct=0.43, days_left=9)]},
+        15.45, 894.30)
+    msg = format_positions(rep)
+    assert "IWM" in msg
+    assert "315" in msg
+    assert "43%" in msg
+    assert "9" in msg
+
+
+def test_format_retro_reports_forecast_vs_actual():
+    msg = format_retro(agent_id="aggressive", symbol="TSLA", quantity=1,
+                       entry_price=200.0, exit_price=197.6, target_price=212.0,
+                       horizon_days=7, opened_on="2026-06-09", closed_on="2026-06-13",
+                       is_short=False)
+    assert "TSLA" in msg
+    assert "Прогноз" in msg
+    assert "По факту" in msg
+    assert "🔴" in msg          # losing trade
