@@ -91,7 +91,7 @@ def test_pnl_without_arg_sends_period_buttons(bot):
 def test_pnl_with_arg_replies_directly(bot):
     b, client = bot
     b.handle_update(_message("/pnl week"))
-    assert "P&L" in client.sent[0][0]
+    assert "P&amp;L" in client.sent[0][0]
     assert client.sent[0][1] is None       # no buttons
 
 
@@ -102,7 +102,7 @@ def test_pnl_callback_edits_message(bot):
         "message": {"message_id": 77}, "data": "pnl:month"}}
     b.handle_update(cb)
     assert client.edits and client.edits[0][0] == 77
-    assert "P&L" in client.edits[0][1]
+    assert "P&amp;L" in client.edits[0][1]
     assert client.answered == ["cb1"]
 
 
@@ -189,3 +189,27 @@ def test_send_uses_html_parse_mode():
     bot._edit(7, "edited")
     assert sent[0]["parse_mode"] == "HTML"
     assert sent[1]["parse_mode"] == "HTML"
+
+
+def test_bot_positions_uses_theses(monkeypatch):
+    import trading.bot as botmod
+
+    captured = {}
+
+    def fake_positions_report(accounts, agent_ids, price_fn, theses=None, today=None):
+        captured["theses"] = theses
+        from trading.reporting.queries import PositionsReport
+        return PositionsReport({}, 0.0, 0.0)
+
+    monkeypatch.setattr(botmod, "positions_report", fake_positions_report)
+    sentinel = object()
+
+    class C:
+        def post(self, url, json=None):
+            return FakeClient._Resp({"ok": True, "result": {}})
+
+    bot = botmod.Bot(client=C(), base="b", accounts=None, journal=None, freezes=None,
+                     run_lock=None, agent_ids=[], price_fn=lambda s: 0.0,
+                     chat_id=str(ADMIN), admin_ids={ADMIN}, theses=sentinel)
+    bot.handle_update({"message": {"from": {"id": ADMIN}, "text": "/positions"}})
+    assert captured["theses"] is sentinel

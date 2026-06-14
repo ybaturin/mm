@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 
 from trading.reporting.format import (
     format_pnl_report, format_positions, format_status, format_trades,
@@ -11,6 +12,10 @@ from trading.reporting.queries import (
 )
 
 log = logging.getLogger("trading.bot")
+
+
+def _today_iso() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 _PERIODS = ("day", "week", "month", "all")
 _PNL_BUTTONS = {"inline_keyboard": [[
@@ -37,7 +42,8 @@ class Bot:
     /status, /trades. Transport is injected (httpx-shaped client)."""
 
     def __init__(self, client, base: str, accounts, journal, freezes, run_lock,
-                 agent_ids: list[str], price_fn, chat_id: str, admin_ids: set[int]) -> None:
+                 agent_ids: list[str], price_fn, chat_id: str, admin_ids: set[int],
+                 theses=None, benchmark_fn=None) -> None:
         self.client = client
         self.base = base
         self.accounts = accounts
@@ -48,6 +54,8 @@ class Bot:
         self.price_fn = price_fn
         self.chat_id = chat_id
         self.admin_ids = admin_ids
+        self.theses = theses
+        self.benchmark_fn = benchmark_fn
 
     # --- transport helpers ---
     def _send(self, text: str, reply_markup=None) -> None:
@@ -72,7 +80,8 @@ class Bot:
 
     # --- report builders ---
     def _pnl_text(self, period: str) -> str:
-        return format_pnl_report(pnl_report(self.journal, self.agent_ids, period))
+        return format_pnl_report(
+            pnl_report(self.journal, self.agent_ids, period, benchmark_fn=self.benchmark_fn))
 
     # --- dispatch ---
     def handle_update(self, upd: dict) -> None:
@@ -108,8 +117,9 @@ class Bot:
         if cmd in ("start", "help"):
             self._send(WELCOME)
         elif cmd == "positions":
-            self._send(format_positions(
-                positions_report(self.accounts, self.agent_ids, self.price_fn)))
+            self._send(format_positions(positions_report(
+                self.accounts, self.agent_ids, self.price_fn,
+                theses=self.theses, today=_today_iso())))
         elif cmd == "status":
             self._send(format_status(status_report(
                 self.accounts, self.journal, self.freezes, self.agent_ids, self.price_fn)))
@@ -194,12 +204,27 @@ def build_bot():
     conn.execute("PRAGMA busy_timeout = 5000")    # tolerate the daily run's brief writes
     init_db(conn)
 
+    from trading.persistence.theses import ThesisStore
+
     profiles = load_profiles("config/profiles.toml")
     load_universe("config/universe.toml")         # validate config presence at startup
     source = YFinanceSource()
 
     def price_fn(symbol: str) -> float:
         return source.latest_price(symbol)
+
+    def benchmark_fn(start_date: str, end_date: str) -> float | None:
+        """SPY return over the report period, from yfinance history. A hiccup here must
+        never break /pnl, so any failure yields None (the header just omits the line)."""
+        try:
+            bars = source.history("SPY", days=400, as_of_date=end_date)
+            by_date = {b.date: b.close for b in bars}
+            starts = sorted(d for d in by_date if d >= start_date)
+            if not starts or end_date not in by_date:
+                return None
+            return by_date[end_date] / by_date[starts[0]] - 1.0
+        except Exception:   # noqa: BLE001 — a benchmark hiccup must not break /pnl
+            return None
 
     return Bot(
         client=httpx.Client(timeout=30.0),
@@ -212,6 +237,8 @@ def build_bot():
         price_fn=price_fn,
         chat_id=chat_id,
         admin_ids=resolve_admin_ids(chat_id),
+        theses=ThesisStore(conn),
+        benchmark_fn=benchmark_fn,
     )
 
 

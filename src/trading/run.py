@@ -113,7 +113,9 @@ def build_components():
     accounts, journal, freezes = (AccountRepository(conn), JournalRepository(conn),
                                   FreezeStore(conn))
     from trading.persistence.runlock import RunLock
+    from trading.persistence.theses import ThesisStore
     run_lock = RunLock(conn)
+    theses = ThesisStore(conn)
 
     # Gate real money: live IBKR (port 4001) requires a track record that beats SPY.
     # Paper (4002) is exempt — that is how the record is built.
@@ -162,7 +164,7 @@ def build_components():
     return dict(profiles=profiles, brokers=brokers, source=source, strategy=strategy,
                 panel=panel, notifier=notifier, accounts=accounts, journal=journal,
                 freezes=freezes, run_lock=run_lock, universe=universe, confirm=confirm,
-                news_source=_news_source_for(),
+                news_source=_news_source_for(), theses=theses,
                 floor_fraction=float(os.environ.get("FLOOR_FRACTION", "0.8")))
 
 
