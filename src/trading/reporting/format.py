@@ -18,6 +18,68 @@ def intent_label(code: str) -> str:
     return _INTENT_RU.get(code, code)
 
 
+def html_escape(s: str) -> str:
+    """Neutralize the three characters Telegram's HTML parse_mode treats as markup."""
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def pnl_color(value: float) -> str:
+    """Green dot for non-negative money, red for negative."""
+    return "🟢" if value >= 0 else "🔴"
+
+
+def _plural(n: int, forms: tuple[str, str, str]) -> str:
+    """Russian plural: forms = (one, few, many). E.g. (1,'день') (2,'дня') (5,'дней')."""
+    n = abs(n)
+    if n % 10 == 1 and n % 100 != 11:
+        return forms[0]
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return forms[1]
+    return forms[2]
+
+
+def human_horizon(days: int) -> str:
+    """Render a horizon in days as a human phrase: '3 дня', '~1 неделя', '~2 недели'."""
+    if days < 6:
+        return f"{days} {_plural(days, ('день', 'дня', 'дней'))}"
+    if days <= 9:
+        return "~1 неделя"
+    if days <= 24:
+        w = round(days / 7)
+        return f"~{w} {_plural(w, ('неделя', 'недели', 'недель'))}"
+    m = round(days / 30)
+    return f"~{m} {_plural(m, ('месяц', 'месяца', 'месяцев'))}"
+
+
+def human_days_left(days: int) -> str:
+    """Render days remaining to a horizon. Non-positive means due/overdue."""
+    if days < 0:
+        return "просрочено"
+    if days == 0:
+        return "сегодня"
+    return f"~{days} дн."
+
+
+def mono_table(rows: list[list[str]], aligns: str) -> str:
+    """Build a width-aligned monospace table wrapped in <pre>. `aligns` is one char per
+    column: 'l' left, 'r' right. Cells are HTML-escaped; no emoji inside (breaks width)."""
+    if not rows:
+        return "<pre></pre>"
+    cells = [[html_escape(c) for c in row] for row in rows]
+    widths = [max(len(row[i]) for row in cells) for i in range(len(cells[0]))]
+    out_lines = []
+    for row in cells:
+        parts = []
+        for i, cell in enumerate(row):
+            pad = widths[i] - len(cell)
+            parts.append(cell + " " * pad if aligns[i] == "l" else " " * pad + cell)
+        out_lines.append(" ".join(parts).rstrip())
+    # Re-pad to equal visible width so the block reads as a clean rectangle.
+    width = max(len(l) for l in out_lines)
+    body = "\n".join(l.ljust(width) for l in out_lines)
+    return f"<pre>{body}</pre>"
+
+
 def format_confirmation(proposal: TradeProposal, decision: GuardrailDecision) -> str:
     notional = decision.quantity * proposal.reference_price
     stop = "—" if proposal.stop_loss_price is None else f"${proposal.stop_loss_price:,.2f}"

@@ -113,5 +113,53 @@ def test_format_trades_lists_fills():
     assert "TSLA" in msg and "b" in msg
 
 
+from trading.reporting.format import (
+    html_escape, human_horizon, human_days_left, mono_table, pnl_color,
+)
+
+
+def test_html_escape_neutralizes_markup():
+    assert html_escape("a < b & c > d") == "a &lt; b &amp; c &gt; d"
+
+
+def test_human_horizon_buckets():
+    assert human_horizon(3) == "3 дня"
+    assert human_horizon(7) == "~1 неделя"
+    assert human_horizon(14) == "~2 недели"
+    assert human_horizon(30) == "~1 месяц"
+
+
+def test_human_days_left_handles_overdue():
+    assert human_days_left(9) == "~9 дн."
+    assert human_days_left(0) == "сегодня"
+    assert human_days_left(-2) == "просрочено"
+
+
+def test_pnl_color_by_sign():
+    assert pnl_color(5.0) == "🟢"
+    assert pnl_color(-5.0) == "🔴"
+    assert pnl_color(0.0) == "🟢"
+
+
+def test_mono_table_aligns_columns_and_wraps_in_pre():
+    out = mono_table(
+        [["14.06", "+3", "IWM", "292.95"],
+         ["13.06", "-1", "TSLA", "406.43"]],
+        aligns="lllr",
+    )
+    assert out.startswith("<pre>") and out.endswith("</pre>")
+    lines = out[len("<pre>"):-len("</pre>")].strip("\n").split("\n")
+    # Every line is padded to the same width.
+    assert len({len(l) for l in lines}) == 1
+    # Symbol column is left-aligned, price column right-aligned.
+    assert "IWM " in lines[0]
+    assert lines[0].endswith("292.95")
+
+
+def test_mono_table_escapes_cells():
+    out = mono_table([["a<b"]], aligns="l")
+    assert "a&lt;b" in out
+
+
 def test_format_trades_handles_empty():
     assert "сделок нет" in format_trades(TradesReport([])).lower()
