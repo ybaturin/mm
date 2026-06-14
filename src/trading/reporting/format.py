@@ -26,8 +26,15 @@ def html_escape(s: str) -> str:
 
 
 def pnl_color(value: float) -> str:
-    """Green dot for non-negative money, red for negative."""
-    return "🟢" if value >= 0 else "🔴"
+    """Green dot for a gain, red for a loss, neutral white for a flat (rounds-to-zero) result."""
+    if round(value) == 0:
+        return "⚪"
+    return "🟢" if value > 0 else "🔴"
+
+
+def money_signed(value: float) -> str:
+    """Signed whole-dollar amount, but no sign for a flat result: '+800$', '-420$', '0$'."""
+    return "0$" if round(value) == 0 else f"{value:+,.0f}$"
 
 
 def _plural(n: int, forms: tuple[str, str, str]) -> str:
@@ -180,22 +187,21 @@ def format_pnl_report(rep: PnlReport) -> str:
         verdict = "обыгрываем" if rep.portfolio_pct >= rep.benchmark_pct else "отстаём"
         bench = f"   ·   SPY {rep.benchmark_pct:+.1%} — {verdict}"
     head = (f"💰 <b>P&amp;L за {_PERIOD_RU.get(rep.period, rep.period)}</b>\n"
-            f"{pnl_color(rep.portfolio_pnl)} <b>Портфель</b> {rep.portfolio_pnl:+,.0f}$  "
+            f"{pnl_color(rep.portfolio_pnl)} <b>Портфель</b> {money_signed(rep.portfolio_pnl)}  "
             f"({rep.portfolio_pct:+.1%}){bench}")
     if not rep.per_agent:
         return head + "\nнет данных"
     blocks = [head]
     for l in rep.per_agent:
         blocks.append(_group_header(l.agent_id))
-        blocks.append(f"{pnl_color(l.pnl)}  {l.pnl:+,.0f}$   ({l.pct:+.1%})")
-        blocks.append(mono_table([["нач.", f"{l.start_equity:,.0f}", "→",
-                                    "тек.", f"{l.end_equity:,.0f}"]], aligns="lrllr"))
+        blocks.append(f"{pnl_color(l.pnl)}  {money_signed(l.pnl)}   ({l.pct:+.1%})")
+        blocks.append(f"нач. {l.start_equity:,.0f} · тек. {l.end_equity:,.0f}")
     return "\n".join(blocks)
 
 
 def format_positions(rep: PositionsReport) -> str:
     head = (f"📦 <b>Позиции</b> · нереализ. {pnl_color(rep.portfolio_unrealized)} "
-            f"{rep.portfolio_unrealized:+,.0f}$")
+            f"{money_signed(rep.portfolio_unrealized)}")
     blocks = [head]
     for agent_id, lines in rep.per_agent.items():
         blocks.append(_group_header(agent_id))
@@ -204,16 +210,19 @@ def format_positions(rep: PositionsReport) -> str:
             continue
         for l in lines:
             side = "LONG" if l.quantity > 0 else "SHORT"
-            row = [f"{side} {abs(l.quantity)} {l.symbol}",
-                   f"вход {l.avg_price:,.2f} → {l.current_price:,.2f}"]
+            blocks.append(f"<b>{html_escape(l.symbol)}</b> · {side} {abs(l.quantity)}")
+            row2 = f"вход {l.avg_price:,.2f} · сейчас {l.current_price:,.2f}"
             if l.target_price is not None:
-                row.append(f"цель {l.target_price:,.2f}")
-            blocks.append(mono_table([row], aligns="l" * len(row)))
-            tail = f"{pnl_color(l.unrealized_pnl)} {l.unrealized_pnl:+,.0f}$"
+                row2 += f" · цель {l.target_price:,.2f}"
+            blocks.append(row2)
+            tail = f"{pnl_color(l.unrealized_pnl)} {money_signed(l.unrealized_pnl)}"
+            extras = []
             if l.path_pct is not None:
-                tail = f"путь к цели {l.path_pct:.0%}   ·   " + tail
+                extras.append(f"путь к цели {l.path_pct:.0%}")
             if l.days_left is not None:
-                tail = f"ост. {human_days_left(l.days_left)}   ·   " + tail
+                extras.append(f"ост. {human_days_left(l.days_left)}")
+            if extras:
+                tail += " · " + " · ".join(extras)
             blocks.append(tail)
     return "\n".join(blocks)
 
@@ -267,7 +276,7 @@ def format_retro(agent_id: str, symbol: str, quantity: int, entry_price: float,
     return (
         f"🏁 <b>Закрыта позиция</b> · {html_escape(agent_id)}\n"
         f"{html_escape(symbol)} ×{quantity} — итог {pnl_color(realized)} "
-        f"{realized:+,.0f}$ ({actual_pct:+.1%})\n\n"
+        f"{money_signed(realized)} ({actual_pct:+.1%})\n\n"
         f"<b>Прогноз был:</b>  {expected_pct:+.1%} за {human_horizon(horizon_days)}\n"
         f"<b>По факту:</b>     {actual_pct:+.1%}, дошли на {max(0.0, path):.0%} пути\n"
         f"<b>Срок:</b>         закрыто на {used}-й день из ~{horizon_days}"

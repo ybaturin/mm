@@ -170,7 +170,24 @@ def test_human_days_left_handles_overdue():
 def test_pnl_color_by_sign():
     assert pnl_color(5.0) == "🟢"
     assert pnl_color(-5.0) == "🔴"
-    assert pnl_color(0.0) == "🟢"
+    assert pnl_color(0.0) == "⚪"        # flat is neutral, not green
+
+
+def test_money_signed_drops_sign_when_flat():
+    from trading.reporting.format import money_signed
+    assert money_signed(800.0) == "+800$"
+    assert money_signed(-420.0) == "-420$"
+    assert money_signed(0.0) == "0$"
+
+
+def test_positions_no_code_block_and_no_arrows():
+    rep = PositionsReport(
+        {"moderate": [PositionLine("moderate", "DIA", 1, 513.06, 513.06, 0.0)]},
+        0.0, 513.06)
+    msg = format_positions(rep)
+    assert "<pre>" not in msg          # plain text, no monospace box that overflows on mobile
+    assert "→" not in msg              # arrows hurt readability
+    assert "⚪ 0$" in msg              # flat P&L is neutral
 
 
 def test_mono_table_aligns_columns_and_wraps_in_pre():
