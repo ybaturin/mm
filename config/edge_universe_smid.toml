@@ -1,0 +1,34 @@
+# config/edge_universe_smid.toml — mid/small-cap universe (pre-registered retry #1).
+# PEAD is documented to be STRONGER in low-coverage names (fewer analysts -> market
+# digests qualitative nuance slower), so this tests the one place the large-cap run
+# (no edge) might not generalize. Liquid S&P 400 / 600 names with likely transcript
+# coverage; ticker misses degrade gracefully (no events).
+symbols = [
+    # Tech / semis / software (mid)
+    "ZBRA", "MANH", "JBL", "CIEN", "COHR", "LSCC", "FFIV", "NTAP", "PSTG", "AKAM",
+    "GEN", "JNPR", "PCTY", "QLYS", "BMI", "VRNS", "PEGA", "APPF", "BL", "EXLS",
+    "NSIT", "SANM", "PLXS", "POWI", "SLAB", "SMTC", "FORM", "ONTO", "ACLS", "AMKR",
+    # Consumer discretionary (mid/small)
+    "WING", "TXRH", "DKS", "FIVE", "BURL", "CROX", "RH", "WSM", "FND", "SKX",
+    "YETI", "PLNT", "BJ", "CASY", "KSS", "BBWI", "FOXF", "WGO", "THO", "LAD",
+    "GPI", "BOOT", "CVCO", "MHK", "LEG", "PVH", "RL",
+    # Industrials (mid)
+    "BLDR", "BLD", "MLI", "AOS", "GGG", "NDSN", "WSO", "AYI", "CSL", "EME",
+    "FIX", "ACM", "RRX", "OSK", "WAB", "CW", "HUBB", "AIT", "SAIA", "JBHT",
+    "CHRW", "LSTR", "WERN", "MATX", "GTLS", "BLDP", "MEG", "TTC", "ALSN", "CR",
+    # Financials (mid/small)
+    "JEF", "CBSH", "PB", "WAL", "EWBC", "ZION", "CFR", "SNV", "FNB", "OZK",
+    "PNFP", "GBCI", "COLB", "KNSL", "RLI", "AFG", "CINF", "ORI", "AGO", "FHI",
+    "STEP", "JHG", "PJT", "EVR", "HLI", "WD", "PRI", "AGM",
+    # Health care (mid/small)
+    "HALO", "MEDP", "EXEL", "JAZZ", "ALKS", "ITCI", "CRL", "RGEN", "BRKR", "CYTK",
+    "HRMY", "AMED", "CHE", "ENSG", "NEOG", "LNTH", "MMSI", "HAE", "TFX", "PEN",
+    "NARI", "SHC", "ICUI", "OMCL", "PRGO", "CORT", "ADMA",
+    # Energy / materials (mid/small)
+    "AR", "RRC", "CHRD", "MTDR", "SM", "PR", "CIVI", "AROC", "CRS", "RPM",
+    "SCL", "ASH", "CE", "EXP", "OLN", "CC", "HUN", "AVNT", "KOS", "MUR",
+    "WFRD", "CRGY", "GPOR", "AESI",
+    # Consumer staples / utilities (mid/small)
+    "POST", "SFM", "INGR", "FLO", "CASY", "ANDE", "CALM", "SMPL", "FRPT", "BRBR",
+    "LANC", "NJR", "OGS", "SWX", "POR", "IDA", "BKH", "ALE", "NWE", "AVA",
+]
