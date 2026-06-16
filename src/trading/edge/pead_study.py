@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable
 
 from trading.edge.events import EarningsEvent
-from trading.edge.portfolio import PeadRecord
+from trading.edge.portfolio import PeadRecord, long_short_net
 from trading.edge.realize import FetchWindow, market_adjusted_multi
 from trading.edge.sue import prior_surprises, sue_by_price, sue_by_sigma, surprise
 
@@ -66,3 +67,32 @@ def _start(decision_date: str) -> str:
 def _end(decision_date: str, horizon: int) -> str:
     from trading.edge.realize import _add_calendar_days
     return _add_calendar_days(decision_date, horizon * 2 + 14)
+
+
+@dataclass(frozen=True)
+class Config:
+    tier: str
+    horizon: int
+    normalization: str       # 'price' | 'sigma'
+
+
+@dataclass(frozen=True)
+class ConfigResult:
+    config: Config
+    net_long_short: float
+    n: int
+
+
+def sweep(configs: list[Config], *, events: list[EarningsEvent],
+          builder: Callable[[Config, list[EarningsEvent]], list[PeadRecord]]
+          ) -> list[ConfigResult]:
+    """Evaluate each config on the given (train) events, scored by net long-short spread,
+    ranked best-first. `builder(config, events) -> records` is injected so the sweep is
+    testable without network and so the real run can plug in build_records."""
+    results: list[ConfigResult] = []
+    for cfg in configs:
+        recs = builder(cfg, events)
+        results.append(ConfigResult(config=cfg, net_long_short=long_short_net(recs),
+                                    n=len(recs)))
+    results.sort(key=lambda r: r.net_long_short, reverse=True)
+    return results
