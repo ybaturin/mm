@@ -42,6 +42,20 @@ Lookahead is avoided by only testing earnings dated after the model's knowledge 
 long-short spread after costs, calibration, and significance vs coin-flip and dumb-PEAD
 benchmarks. Full design: `docs/superpowers/specs/2026-06-14-llm-edge-measurer-design.md`.
 
+### Mechanical PEAD study (no LLM)
+
+After the LLM edge measurer found deep reading adds nothing over a one-line EPS-surprise
+rule, this studies the mechanical PEAD anomaly directly — sweeping cap-tier x horizon
+(1-60d) x SUE normalization on a train window, pre-registering one config, and scoring it
+ONCE on a held-out test window (anti-overfit). Net of realistic tiered trading costs.
+
+```bash
+ALPHAVANTAGE_API_KEY=... EDGE_UNIVERSE_FILE=config/edge_universe_smid.toml \
+  PEAD_SPLIT=2026-04-01 uv run python -m trading.edge.pead_study
+```
+
+Spec: `docs/superpowers/specs/2026-06-16-mechanical-pead-study-design.md`.
+
 ## Deploy (Raspberry Pi or VPS)
 
 1. `cp .env.example .env` and fill in secrets.
