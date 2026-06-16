@@ -74,6 +74,22 @@ def _year_quarter(report_date: str) -> tuple[int, int]:
     return d.year, (d.month - 1) // 3 + 1
 
 
+def parse_av_earnings_series(payload: dict) -> list[dict]:
+    """All quarterly rows (no cutoff filter) as {report_date, eps_actual, eps_consensus}
+    for SUE-by-sigma priors. EPS 'None'/missing -> None. Throttle payload -> []."""
+    out: list[dict] = []
+    for row in payload.get("quarterlyEarnings", []):
+        reported = str(row.get("reportedDate", ""))[:10]
+        if not reported:
+            continue
+        out.append({
+            "report_date": reported,
+            "eps_actual": _to_float(row.get("reportedEPS")),
+            "eps_consensus": _to_float(row.get("estimatedEPS")),
+        })
+    return out
+
+
 # --- Alpha Vantage (free tier includes transcripts: 25 calls/day, 5/min) ---------------
 
 AV_BASE = "https://www.alphavantage.co/query"
@@ -155,6 +171,14 @@ class AlphaVantageSource:
             except Exception:
                 continue
         return events
+
+    def earnings_series(self, symbol: str) -> list[dict]:
+        """Full quarterly EPS history for one symbol (for SUE-by-sigma priors)."""
+        try:
+            payload = self._get({"function": "EARNINGS", "symbol": symbol})
+            return parse_av_earnings_series(payload)
+        except Exception:
+            return []
 
     def documents(self, event: EarningsEvent) -> EventDocuments:
         transcript = ""
