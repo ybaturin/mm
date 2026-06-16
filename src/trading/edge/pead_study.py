@@ -3,8 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from trading.analysis.track_record import max_drawdown, sharpe
 from trading.edge.events import EarningsEvent
-from trading.edge.portfolio import PeadRecord, long_short_net
+from trading.edge.metrics import hit_rate, information_coefficient, t_statistic
+from trading.edge.portfolio import (PeadRecord, bucket_returns, long_short_net,
+                                    pnl_series)
 from trading.edge.realize import FetchWindow, market_adjusted_multi
 from trading.edge.sue import prior_surprises, sue_by_price, sue_by_sigma, surprise
 
@@ -96,3 +99,46 @@ def sweep(configs: list[Config], *, events: list[EarningsEvent],
                                     n=len(recs)))
     results.sort(key=lambda r: r.net_long_short, reverse=True)
     return results
+
+
+def build_report(chosen: ConfigResult, test_records: list[PeadRecord],
+                 all_ranked: list[ConfigResult]) -> str:
+    """Final report. The chosen config was picked on TRAIN; here it is scored ONCE on the
+    held-out TEST records. Multiple-testing breadth is printed (configs evaluated)."""
+    c = chosen.config
+    lines = [
+        "=== MECHANICAL PEAD STUDY REPORT ===",
+        f"PRE-REGISTERED CONFIG: tier={c.tier} horizon={c.horizon} norm={c.normalization}",
+        f"TRAIN net long-short: {chosen.net_long_short:+.4f} (n={chosen.n})",
+        f"configs evaluated: {len(all_ranked)}",
+        "--- HELD-OUT TEST ---",
+        f"test sample: {len(test_records)}",
+    ]
+    if len(test_records) < 2:
+        lines.append("Result: insufficient held-out data to conclude.")
+        return "\n".join(lines)
+
+    signals = [r.signal for r in test_records]
+    realized = [r.realized for r in test_records]
+    series = pnl_series(test_records)
+    monthly = bucket_returns(series)
+    lines += [
+        f"net long-short (after costs): {long_short_net(test_records):+.4f}",
+        f"information coefficient: {information_coefficient(signals, realized):+.3f}",
+        f"hit rate: {hit_rate(signals, realized):.1%}",
+        f"directional t-stat: {t_statistic([p for _, p in series]):+.2f}",
+        f"monthly Sharpe (annualized): {sharpe(monthly, periods_per_year=12):+.2f}",
+        f"max drawdown: {max_drawdown(_equity(monthly)):.1%}",
+        "",
+        "Gate: real only if held-out long-short > 0, significant, and stable on forward.",
+        "Caveat: one regime + multiple-testing — confirm on forward accumulation.",
+    ]
+    return "\n".join(lines)
+
+
+def _equity(returns: list[float]) -> list[float]:
+    """Cumulative equity curve from a return series, starting at 1.0."""
+    curve = [1.0]
+    for r in returns:
+        curve.append(curve[-1] * (1.0 + r))
+    return curve
