@@ -68,3 +68,12 @@ def realized_market_adjusted(symbol: str, decision_date: str, horizon_days: int,
     except Exception:
         return None
     return market_adjusted_return(stock, spy, decision_date, horizon_days)
+
+
+def market_adjusted_multi(stock_bars: list[Bar], spy_bars: list[Bar],
+                          decision_date: str,
+                          horizons: list[int]) -> dict[int, float | None]:
+    """Market-adjusted forward return at each horizon, computed from one pair of bar
+    windows. None for any horizon whose forward window is incomplete."""
+    return {h: market_adjusted_return(stock_bars, spy_bars, decision_date, h)
+            for h in horizons}
