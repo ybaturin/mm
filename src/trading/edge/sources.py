@@ -6,6 +6,7 @@ from datetime import date, timedelta
 
 import httpx
 
+from trading.data.bars import Bar
 from trading.edge.documents import EventDocuments
 from trading.edge.events import EarningsEvent
 
@@ -72,6 +73,23 @@ class FMPSource:
 def _year_quarter(report_date: str) -> tuple[int, int]:
     d = date.fromisoformat(report_date)
     return d.year, (d.month - 1) // 3 + 1
+
+
+def parse_av_daily(payload: dict) -> list[Bar]:
+    """Parse Alpha Vantage TIME_SERIES_DAILY into ascending Bars. Throttle/error payload
+    (no 'Time Series (Daily)') -> []."""
+    ts = payload.get("Time Series (Daily)", {})
+    out: list[Bar] = []
+    for d, row in ts.items():
+        try:
+            out.append(Bar(date=d[:10], open=float(row["1. open"]),
+                           high=float(row["2. high"]), low=float(row["3. low"]),
+                           close=float(row["4. close"]),
+                           volume=int(float(row["5. volume"]))))
+        except (KeyError, ValueError, TypeError):
+            continue
+    out.sort(key=lambda b: b.date)
+    return out
 
 
 def parse_av_earnings_series(payload: dict) -> list[dict]:
@@ -151,6 +169,11 @@ class AlphaVantageSource:
         # phase fires one call per universe symbol with no gaps). Override via EDGE_AV_DELAY.
         self.delay_sec = (float(os.environ.get("EDGE_AV_DELAY", "0.8"))
                           if delay_sec is None else delay_sec)
+        # Per-symbol caches: full daily prices and full EPS history are each fetched
+        # once and reused across every config/horizon in a sweep (kills both yfinance
+        # throttling and redundant refetching).
+        self._daily_cache: dict[str, list[Bar]] = {}
+        self._earnings_cache: dict[str, list[dict]] = {}
 
     def _get(self, params: dict) -> dict:
         if self.delay_sec:
@@ -173,12 +196,40 @@ class AlphaVantageSource:
         return events
 
     def earnings_series(self, symbol: str) -> list[dict]:
-        """Full quarterly EPS history for one symbol (for SUE-by-sigma priors)."""
+        """Full quarterly EPS history for one symbol (for SUE-by-sigma priors). Cached."""
+        if symbol in self._earnings_cache:
+            return self._earnings_cache[symbol]
         try:
             payload = self._get({"function": "EARNINGS", "symbol": symbol})
-            return parse_av_earnings_series(payload)
+            rows = parse_av_earnings_series(payload)
         except Exception:
-            return []
+            rows = []
+        self._earnings_cache[symbol] = rows
+        return rows
+
+    def daily_series(self, symbol: str) -> list[Bar]:
+        """Full daily OHLCV history for one symbol, ascending by date. Cached — one call
+        per symbol serves every window/horizon. Degrades to []."""
+        if symbol in self._daily_cache:
+            return self._daily_cache[symbol]
+        try:
+            payload = self._get({"function": "TIME_SERIES_DAILY", "symbol": symbol,
+                                 "outputsize": "full"})
+            bars = parse_av_daily(payload)
+        except Exception:
+            bars = []
+        self._daily_cache[symbol] = bars
+        return bars
+
+    def price_window(self, symbol: str, start_date: str, end_date: str) -> list[Bar]:
+        """Bars in [start_date, end_date] from the cached daily series. Satisfies the
+        FetchWindow signature used by realize/pead_study."""
+        return [b for b in self.daily_series(symbol) if start_date <= b.date <= end_date]
+
+    def price_at(self, symbol: str, as_of_date: str) -> float:
+        """Close on the latest bar on/before as_of_date (point-in-time). 0.0 if none."""
+        prior = [b for b in self.daily_series(symbol) if b.date <= as_of_date]
+        return prior[-1].close if prior else 0.0
 
     def documents(self, event: EarningsEvent) -> EventDocuments:
         transcript = ""

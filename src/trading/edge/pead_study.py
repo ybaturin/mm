@@ -170,17 +170,16 @@ def main() -> None:
     """
     import os
 
-    from trading.data.yfinance_source import YFinanceSource
     from trading.edge.events import select_post_cutoff
-    from trading.edge.realize import yfinance_window
     from trading.edge.run import _load_universe
     from trading.edge.sources import AlphaVantageSource
 
     cutoff = os.environ.get("EDGE_CUTOFF", "2026-02-01")
     split = os.environ.get("PEAD_SPLIT", "2026-04-01")
 
+    # One AV client: paid premium serves BOTH EPS and prices (cached per symbol),
+    # avoiding yfinance throttling under the sweep's heavy fetching.
     av = AlphaVantageSource()
-    src = YFinanceSource()
     events = select_post_cutoff(av.calendar(_load_universe(), earliest_report_date=cutoff),
                                 earliest_report_date=cutoff)
     print(f"{len(events)} post-cutoff events; train/test split at {split}")
@@ -188,15 +187,9 @@ def main() -> None:
     tier = "small" if "smid" in os.environ.get("EDGE_UNIVERSE_FILE", "") else "large"
     configs = [Config(tier, h, n) for h in (1, 5, 10, 20, 60) for n in ("price", "sigma")]
 
-    def price_of(symbol: str, d: str) -> float:
-        try:
-            return src.latest_price(symbol, as_of_date=d)
-        except Exception:
-            return 0.0
-
     report = run_study(events=events, split_date=split, configs=configs,
-                       price_of=price_of, earnings_series_of=av.earnings_series,
-                       fetch_window=yfinance_window)
+                       price_of=av.price_at, earnings_series_of=av.earnings_series,
+                       fetch_window=av.price_window)
     print(report)
 
 
